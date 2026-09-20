@@ -184,9 +184,7 @@ private:
 	Microsoft::WRL::ComPtr<IDWriteTextLayout> tipLayout;
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushTipBg;
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushTipText;
-	// 提示到点后是否连截图窗口一起收掉。二维码"识别成功"那条路传 true
-	bool tipCloseAfter{ false };
-	void showTip(const std::wstring& text, bool closeAfter = false);
+	void showTip(const std::wstring& text);
 	void paintTip(ID2D1DeviceContext* ctx);
 };
 

@@ -7,6 +7,7 @@
 #include "../Util.h"
 #include "../Lang.h"
 #include "../Setting.h"
+#include "../Toast.h"
 #include <thread>
 #include "../Update.h"
 #include "CapLong.h"
@@ -49,18 +50,10 @@ WinCap::WinCap() : ToolHost()
             }
             return;
         }
-          // 原地提示到点了：收掉它并重画。
-          // 如果这次提示来自"二维码识别成功"，说明用户只是来扫个码，顺手把截图状态一起退掉
+          // 原地提示到点了：收掉它并重画
           if (id == tipMsgId) {
               tipLayout.Reset();
               killTimer(tipMsgId);
-              if (tipCloseAfter) {
-                  tipCloseAfter = false;
-                  // close() 里 DestroyWindow 会同步进 onClosed()，那里把 winCap.reset() 推迟到
-                  // 下一轮消息循环 —— 所以这里返回之后不要再碰本对象的任何成员
-                  close();
-                  return;
-              }
               refresh();
               return;
           }
@@ -191,10 +184,9 @@ void WinCap::paintTip(ID2D1DeviceContext* ctx)
     ctx->DrawTextLayout({ bgRect.left + pad, bgRect.top + pad }, tipLayout.Get(), brushTipText.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
 }
 
-void WinCap::showTip(const std::wstring& text, bool closeAfter)
+void WinCap::showTip(const std::wstring& text)
 {
     tipLayout = Ling::D2D::get()->makeTextLayout(text, 13.f * dpi);
-    tipCloseAfter = closeAfter;
     // 先撤掉上一次的定时器再重新计时：连着点两次二维码，第二次应该重新显示满 2 秒
     killTimer(tipMsgId);
     setTimer(tipShowMs, tipMsgId);
@@ -1002,15 +994,22 @@ void WinCap::startQrcode()
     int cw{ 0 }, ch{ 0 };
     if (!getCutPixels(pixels, cw, ch)) return;
     auto text = Util::decodeQrCode(cw, ch, pixels.data());
-    // 不弹框：认出来就静默写进剪切板，在选区正中显示一行提示；提示停留 2 秒之后
-    // **连截图窗口一起收掉**（用户来就是为了扫个码，不用再自己按 ESC 或点关闭）。
+    // 不弹框。认出来就：内容静默写进剪切板 -> **立刻退出截图状态** -> 让那句"已复制"以
+    // 独立小窗（Toast）的形式在原地再飘 2 秒。扫个码而已，不用自己按 ESC 或点关闭。
     // 没认出来就留在原地，方便调整选区重扫 —— 那种情况下自动退出反而碍事
     if (text.empty()) {
         showTip(Lang::get(L"cap.qrcodeEmpty"));
     }
     else {
         Ling::Util::setTextToClipboard(text);
-        showTip(Lang::get(L"cap.qrcodeCopied"), true);
+        auto& mr = cutMask->maskRect;
+        // 用完即走模式不弹提示：那种用法下 WinCap::onClosed 会立刻 quit(0)，
+        // 提示窗刚建出来就被进程带走，只会闪一下 —— 脚本要的是剪切板里的结果，不是看提示
+        if (Ling::App::get()->args[L"--auto-quit"] != L"true") {
+            Toast::showAt(Lang::get(L"cap.qrcodeCopied"),
+                (mr.left + mr.right) / 2, (mr.top + mr.bottom) / 2, dpi);
+        }
+        close();
     }
 }
 

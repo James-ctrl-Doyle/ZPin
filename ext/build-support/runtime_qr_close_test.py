@@ -1,14 +1,15 @@
 """验证二维码识别"成功"那条路的新行为：
 
-    识别到 -> 内容写进剪切板 -> 选区正中提示停留 2 秒 -> **自动退出截图状态**（窗口自己关掉）
+    识别到 -> 内容写进剪切板 -> **立刻退出截图状态** -> 那句"已复制"由独立小窗（Toast）继续飘 2 秒
 
 屏幕上的二维码从 git 历史里取回（当初删掉的那批赞助码之一），用 ctypes 手画一个窗口显示它，
 再走真实流程：F1 -> 框选二维码 -> 点工具条上的二维码按钮。
 
-两条关键断言（有判别力）：
-  1. 点完之后 **1 秒时窗口必须还在** —— 排除"一识别就立刻关掉"，那样用户根本看不到提示；
-  2. 2.6 秒后窗口**必须没了** —— 这才是"提示保持 2 秒后自动退出"。
-  另外顺带验证剪切板里确实拿到了内容。
+四条断言（都有判别力）：
+  1. 0.7 秒时截图窗口**必须已经没了**（"立马退出"）；
+  2. 但 0.7 秒时选区正中**必须还看得见提示** —— 证明提示不依赖截图窗口；
+  3. 2.8 秒时提示自己收掉（画面回到原样），且进程一个可见窗口都不剩；
+  4. 剪切板里确实拿到了内容。
 
 屏幕上没有二维码时（"未识别到"那条路）由 runtime_qr_test.py 负责：那条路应该留在原地。
 """
@@ -334,15 +335,20 @@ def main():
               % (bx, avg_before))
         click(bar['hwnd'], bx, int(barh / 2))
 
-        time.sleep(1.0)
+        # 0.7 秒：截图窗口应该**已经没了**（立刻退出），而独立提示还在屏幕上
+        time.sleep(0.7)
         during = center_gray(cx, cy)
-        alive_1s = bool([w for w in windows_of(pid) if w['visible'] and w['hwnd'] == capwnd])
-        print('   1.0 秒：平均亮度 %.1f；截图窗口还在 = %s' % (sum(during) / len(during), alive_1s))
+        vis_07 = [w for w in windows_of(pid) if w['visible']]
+        alive_07 = any(w['hwnd'] == capwnd for w in vis_07)
+        print('   0.7 秒：平均亮度 %.1f；截图窗口还在 = %s；本进程可见窗口 %d 个'
+              % (sum(during) / len(during), alive_07, len(vis_07)))
 
-        time.sleep(1.6)     # 这时距点击约 2.6 秒，超过 2 秒的提示时长
+        # 再等到约 2.8 秒：提示应该自己收掉了，一个窗口都不剩
+        time.sleep(2.1)
         after = center_gray(cx, cy)
-        alive_26s = bool([w for w in windows_of(pid) if w['visible'] and w['hwnd'] == capwnd])
-        print('   2.6 秒：平均亮度 %.1f；截图窗口还在 = %s' % (sum(after) / len(after), alive_26s))
+        vis_28 = [w for w in windows_of(pid) if w['visible']]
+        print('   2.8 秒：平均亮度 %.1f；本进程可见窗口 %d 个'
+              % (sum(after) / len(after), len(vis_28)))
 
         text = clipboard_text()
         print('   剪切板内容：%r' % (text[:60] if text else None))
@@ -356,24 +362,30 @@ def main():
         time.sleep(0.3)
 
     d_tip = changed(before, during)
-    print('   点击后选区正中变化的像素数 = %d（提示是深底白字，会带来上千个）' % d_tip)
+    d_gone = changed(before, after)
+    print('   相对"点之前"：0.7 秒变化 %d 个像素，2.8 秒变化 %d 个' % (d_tip, d_gone))
 
     ok = True
-    if not alive_1s:
-        print('  => **问题：1 秒时窗口就没了，提示根本来不及看**')
+    if alive_07:
+        print('  => **问题：0.7 秒时截图窗口还在，没有"立马退出"**')
         ok = False
     else:
-        print('  => 通过：1 秒时截图窗口还在（提示确实停留了一会儿）')
+        print('  => 通过：0.7 秒时截图窗口已经关掉（识别完立刻退出）')
     if d_tip < 500:
-        print('  => **问题：选区正中没出现提示（变化像素太少）**')
+        print('  => **问题：0.7 秒时选区正中没看见提示（变化像素太少）**')
         ok = False
     else:
-        print('  => 通过：选区正中出现了提示（%d 个像素被改动）' % d_tip)
-    if alive_26s:
-        print('  => **问题：2.6 秒后截图窗口还在，没有自动退出截图状态**')
+        print('  => 通过：提示独立于窗口还在显示（%d 个像素被改动）' % d_tip)
+    if d_gone > 500:
+        print('  => **问题：2.8 秒后提示还在，没自己收掉**')
         ok = False
     else:
-        print('  => 通过：2.6 秒后截图窗口已经关掉（自动退出截图状态）')
+        print('  => 通过：2.8 秒后提示自己消失了（残留变化 %d）' % d_gone)
+    if len(vis_28) != 0:
+        print('  => **问题：2.8 秒后进程还剩 %d 个可见窗口（提示没销毁）**' % len(vis_28))
+        ok = False
+    else:
+        print('  => 通过：2.8 秒后本进程没有可见窗口了')
     if not text:
         print('  => **问题：剪切板里没有内容，二维码没识别出来**')
         ok = False

@@ -7,7 +7,7 @@
 ## Features
 
 - Screenshot, drawing annotations, scrolling screenshot (long screenshot), screen recording (GIF/MP4), text recognition (OCR, recognized automatically after pasting an image — drag to select text and copy it), QR code recognition.
-- QR code recognition: the content is copied silently and a toast shows up in the middle of the selection for 2 seconds — then the capture window closes by itself. No dialog. If nothing is recognized the window stays, so you can adjust the selection and scan again.
+- QR code recognition: the content is copied silently and the capture window **closes right away**; the "content copied" toast keeps floating there for 2 seconds as its own little window. No dialog. If nothing is recognized the window stays, so you can adjust the selection and scan again.
 - Color picker, supports shortcut keys to copy RGB color (`Ctrl+R`), HEX color (`Ctrl+H`) and CMYK color (`Ctrl+K`).
 - Draw ellipses, perfect circles (hold `Shift`), rectangles, squares (hold `Shift`), arrows, numbered labels, etc.
 - Draw curves, straight lines (hold `Shift`), mosaic, eraser, text.
