@@ -38,9 +38,31 @@ EXE_DIR = os.path.dirname(EXE)
 PORTABLE_CFG = os.path.join(EXE_DIR, 'config.json')
 import _cfg_guard          # 这行文件就是 <exe 同目录>\config.json = 用户真实配置，得护栏
 _cfg_guard.install(PORTABLE_CFG)
+# 默认选区是"屏幕中间一块"，工具条摆在它右下方，四周都很宽裕 —— 这种位置测不出
+# "工具条被挤出屏幕"的问题。要复现就得让选区贴着屏幕边，所以支持从命令行传：
+#   python runtime_video_probe.py <left> <top> <right> <bottom>
+# 例：右边缘贴屏幕右边 (700 350 1910 950)、近全屏 (10 10 1910 1190)
 SEL = (500, 350, 1200, 950)
+if len(sys.argv) >= 5:
+    SEL = tuple(int(v) for v in sys.argv[1:5])
 
 EnumWindowsProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+SPI_GETWORKAREA = 0x0030
+
+
+def work_area():
+    """主显示器工作区 (left, top, right, bottom)，物理像素 —— 和程序里
+    GetMonitorInfo 的 rcWork 是同一个概念（都不含任务栏）。
+
+    拿它来判断"工具条有没有被挤出屏幕"：窗口的 rect 可以落在屏幕外（Windows 不管），
+    但用户看不见也点不到，所以必须自己断言。
+    """
+    r = wintypes.RECT()
+    user32.SystemParametersInfoW.argtypes = [wintypes.UINT, wintypes.UINT,
+                                             ctypes.POINTER(wintypes.RECT), wintypes.UINT]
+    user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(r), 0)
+    return (r.left, r.top, r.right, r.bottom)
 
 
 def windows_of(pid, visible=True):
@@ -267,13 +289,38 @@ def main():
                      [i for i, w in enumerate(ws3) if w['hwnd'] == capwnd][0],
                      '通过：工具条在覆盖层之上' if above else '**问题：工具条被覆盖层盖住了**'))
             print('   各按钮命中：')
+            ok_hit = True
             for i in range(5):
                 x = t3[0]['rect'][0] + int((i + 0.5) * t3[0]['rect'][2] / 5)
                 y = t3[0]['rect'][1] + t3[0]['rect'][3] // 2
                 h = hit_label(pid, x, y)
+                good = h.startswith('0x%X' % t3[0]['hwnd'])
+                if not good:
+                    ok_hit = False
                 print('     第 %d 点 (屏 %d,%d) -> %s%s'
-                      % (i, x, y, h, '' if h.startswith('0x%X' % t3[0]['hwnd']) else '   <<< 点不到按钮'))
-            return 0 if above else 1
+                      % (i, x, y, h, '' if good else '   <<< 点不到按钮'))
+
+            # 越界检查：光"z 序在覆盖层之上"不够 —— 工具条还可能整个（或部分）被挤出
+            # 屏幕外，那时 WindowFromPoint 照样能命中它（命中测试用的是虚拟桌面坐标），
+            # 但用户看不见也点不着。录制开始后工具条会变宽，位置没重算就会往右溢出。
+            wa = work_area()
+            L, T, W, H = t3[0]['rect']
+            over = []
+            if L < wa[0]:
+                over.append('左')
+            if T < wa[1]:
+                over.append('上')
+            if L + W > wa[2]:
+                over.append('右(右边缘 %d > 工作区 %d)' % (L + W, wa[2]))
+            if T + H > wa[3]:
+                over.append('下(底边缘 %d > 工作区 %d)' % (T + H, wa[3]))
+            if over:
+                print('   => **问题：工具条越出屏幕工作区【%s】**' % '，'.join(over))
+                print('      越界的那截在屏幕外，看不见也点不到')
+                return 1
+            print('   => 通过：工具条完整落在屏幕工作区内（rect=%s，工作区=%s）'
+                  % (t3[0]['rect'], wa))
+            return 0 if (above and ok_hit) else 1
     finally:
         try:
             proc.kill()

@@ -790,11 +790,16 @@ void WinCap::layoutTool(Ling::WinBase* tool)
     const int maskRightScr = x + (int)cutMask->maskRect.right;
     const int maskBottomScr = y + (int)cutMask->maskRect.bottom;
 
-    // 用框选区域所在显示器的工作区判断上/下方是否有足够空间
-    RECT maskScrRect{ maskLeftScr, maskTopScr, maskRightScr, maskBottomScr };
-    HMONITOR hMon = MonitorFromRect(&maskScrRect, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi{ sizeof(MONITORINFO) };
-    GetMonitorInfo(hMon, &mi);
+      // 用框选区域所在显示器的工作区判断上/下方是否有足够空间
+      RECT maskScrRect{ maskLeftScr, maskTopScr, maskRightScr, maskBottomScr };
+      HMONITOR hMon = MonitorFromRect(&maskScrRect, MONITOR_DEFAULTTONEAREST);
+      MONITORINFO mi{ sizeof(MONITORINFO) };
+      // 拿不到显示器信息就退回整个虚拟桌面（与 layoutTools 那边的兜底一致）。
+      // 少了这一步，mi.rcWork 会是全 0，下面那几句兜底会把工具条夹到屏幕左上角去
+      if (!hMon || !GetMonitorInfo(hMon, &mi)) {
+          auto [ax, ay, aw, ah] = App::get()->getScreenArea();
+          mi.rcWork = RECT{ ax, ay, ax + aw, ay + ah };
+      }
 
     // 间距按工具条自己所在显示器的缩放算：本窗口铺满整个虚拟桌面，dpi 是系统缩放，
     // 混合缩放的多屏下和选区所在的那块屏不一定是一回事
@@ -820,10 +825,15 @@ void WinCap::layoutTool(Ling::WinBase* tool)
         toolY = maskBottomScr - toolH - overlapPad;
     }
 
-    // 兜底：不越出所在显示器工作区
-    if (toolX < mi.rcWork.left) toolX = mi.rcWork.left;
-    if (toolX + toolW > mi.rcWork.right) toolX = mi.rcWork.right - toolW;
-    tool->setPosition(toolX, toolY);
+      // 兜底：不越出所在显示器工作区。X 和 Y 都要夹 ——
+      // 只夹 X 的话，"叠加在选区内部"那条路算出来的 toolY 一旦越界（选区底边贴近/超出
+      // 工作区底边，混合缩放多屏下尤其容易），整根工具条就跑到屏幕外去了，
+      // 用户看到的就是"工具条不见了"。
+      if (toolX < mi.rcWork.left) toolX = mi.rcWork.left;
+      if (toolX + toolW > mi.rcWork.right) toolX = mi.rcWork.right - toolW;
+      if (toolY < mi.rcWork.top) toolY = mi.rcWork.top;
+      if (toolY + toolH > mi.rcWork.bottom) toolY = mi.rcWork.bottom - toolH;
+      tool->setPosition(toolX, toolY);
 }
 
 void WinCap::enterLiveStage()

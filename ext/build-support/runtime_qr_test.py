@@ -157,7 +157,9 @@ def main():
         before = center_stats(cx, cy)
         print('== 点二维码识别（按钮 12，x=%d）== 点之前：平均亮度 %.1f' % (bx, before[0]))
         click(bar['hwnd'], bx, int(barh / 2))
-        time.sleep(1.2)
+        # 采样点要离"提示消失"远一点：提示只停 2 秒，而采样本身（截屏 + 逐像素比）也要花时间。
+        # 原来这里等 1.2 秒，机器一卡就整个错过提示，报出"没出现提示"的假失败。
+        time.sleep(0.6)
         during = center_stats(cx, cy)
         win_alive = [w for w in windows_of(pid) if w['visible'] and w['hwnd'] == capwnd]
         print('   点之后：平均亮度 %.1f 亮点 %d；截图窗口还在 = %s'

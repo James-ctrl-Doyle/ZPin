@@ -145,6 +145,9 @@ void ToolVideo::showSetting()
 
 	applyToggleStyle(btnSpeaker, selectSpeaker);
 	applyToggleStyle(btnMic, selectMic);
+	// 尺寸刚变过，位置必须重算：摆放规则是"右边缘对齐选区右边缘"，按旧宽度算出来的
+	// X 会让变宽后的工具条向右溢出（见 showRecording 里那条同类注释）
+	this->win->layoutTool(this);
 	raiseSelf();
 }
 
@@ -175,6 +178,12 @@ void ToolVideo::showRecording()
 	auto btnSave = makeIconBtn(L"\ue6ad");
 	btnSave->onClick.add([this](Ling::Button*) { saveFile(); });
 	tip->bind(btnSave, Lang::get(L"video.stopFile"));
+	// ⚠ 从设置态切到录制态宽度会变（计时器比两个音源按钮宽），位置**必须**重算。
+	// 摆放规则是"右边缘对齐选区右边缘"（见 WinCap::layoutTool），X 是按当时的宽度算的；
+	// 只改尺寸不重摆，工具条就会以左上角为锚点向右长出那么一截。
+	// 选区贴着屏幕右边 / 全屏录制时，多出来的那截正好把最右边的"保存"顶到屏幕外 ——
+	// 用户看到的就是"一开始还能看见的工具条，点了开始录制之后就没了、也退不出来"。
+	this->win->layoutTool(this);
 	raiseSelf();
 }
 
