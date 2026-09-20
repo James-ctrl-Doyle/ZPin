@@ -55,6 +55,31 @@ log "MSBuild : $MSB"
 log "项目根  : $ROOT"
 log ""
 
+# 0) 生成构建用的工程副本（Src/ScreenCapture.build.vcxproj）。
+#    为什么需要副本：MSBuild 直接编 .vcxproj（不经过 .slnx）时 $(SolutionDir) 是空的，
+#    `$(SolutionDir)ext\Ling` 解析不出来就找不到 include/Ling.h；副本里把它换成绝对路径，
+#    顺便把 IntDir/OutDir 引到 ext/build/ 下，不污染仓库。
+#    ⚠ 副本**不在仓库里**（已被 .gitignore）——刚 clone 下来肯定没有它，
+#      所以这里必须每次重新生成；否则新建的仓库第一次就编不过（C1083）。
+#      重新生成也顺带解决"挪过目录 / 改过路径之后副本里还是旧路径"的问题。
+log "########## 0/3  生成构建工程副本 ##########"
+PY=""
+for c in python python3 py; do
+    if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
+done
+if [ -z "$PY" ]; then
+    log "!! 找不到 python（生成构建工程副本需要它）"
+    log "   替代做法：用 Visual Studio 打开 $ROOT/ScreenCapture.slnx 直接编译"
+    exit 1
+fi
+if ! "$PY" "$(winpath "$ROOT/_tools/make_build_project.py")" > "$LOGS/make_project.log" 2>&1; then
+    log "!! 生成 $ROOT/Src/ScreenCapture.build.vcxproj 失败，日志见 $LOGS/make_project.log"
+    cat "$LOGS/make_project.log" >> "$SUMMARY"
+    exit 1
+fi
+log "ok  (python: $PY)"
+log ""
+
 # 产物 exe 正在运行会挡住链接（LNK1104 无法打开文件）。先结束掉 —— 这是开发用的构建脚本，
 # 反复手杀太烦。taskkill 本机不可用，用 PowerShell 的 Stop-Process（要 WINPID，ps -W 第 4 列）。
 if ps -W 2>/dev/null | grep -qi "ScreenCapture.build.exe"; then

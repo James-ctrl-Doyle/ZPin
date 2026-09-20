@@ -27,14 +27,20 @@
 bash ext/build-support/rebuild_all.sh
 ```
 
-脚本自动定位 MSBuild（通过 `vswhere`）并把日志写到 `ext/build/logs/`。
-可用环境变量覆盖：`MSBUILD`（MSBuild.exe 路径）、`SC_ROOT`（项目根）。
+脚本会自动：① 用 `_tools/make_build_project.py` 生成构建用的工程副本
+`Src/ScreenCapture.build.vcxproj`；② 用 `vswhere` 定位 MSBuild；③ 依次重编 yoga → Ling → ScreenCapture，
+日志写到 `ext/build/logs/`。可用环境变量覆盖：`MSBUILD`（MSBuild.exe 路径）、`SC_ROOT`（项目根）。
 
 产物：`ext/build/bin/x64/Release/ScreenCapture.build.exe`
 
-> 直接编 `.vcxproj`（不经过 `.slnx`）时 `$(SolutionDir)` 是空的，那种用法要先跑
-> `python _tools/make_build_project.py` 生成一份带绝对路径的
-> `Src/ScreenCapture.build.vcxproj`（该文件是本机生成的，不进仓库）。
+> ⚠ 上面那条命令需要 **Python 3**（只用来生成工程副本，不需要安装任何 Python 包）。
+> 没有 Python 的话，用 Visual Studio 打开 `ScreenCapture.slnx` 编译，效果一样。
+>
+> 为什么要生成副本：不经过 `.slnx` 直接编 `.vcxproj` 时 `$(SolutionDir)` 是空的，
+> 工程里的 `$(SolutionDir)ext\Ling` 解析不出来，会报
+> `C1083: 无法打开包括文件 "include/Ling.h"`。副本把 Ling 的路径换成绝对路径，
+> 并把 `IntDir`/`OutDir` 引到 `ext/build/` 下、不落进仓库。
+> 这个副本是本机生成的，**不进仓库** —— 所以每次构建都要重新生成（脚本已经替你做掉了）。
 
 ## 依赖
 
