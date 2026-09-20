@@ -44,6 +44,10 @@ _cfg_guard.install(PORTABLE_CFG)
 PY = sys.executable
 LAST_BIN = os.path.join(os.path.dirname(EXE), 'temp', 'last.bin')
 
+# 结果图验证走"保存落盘"（收尾按钮 2026-09-20 起与录屏同一套：贴图/丢弃/保存，
+# 没有"复制"了）：quickSave=true + saveDir 指到本目录，点保存直接写这里
+SAVE_DIR = os.path.join(_BUILD, 'logs', 'longsave')
+
 BLOCK = 16
 CONTENT_H = 4000
 
@@ -181,8 +185,9 @@ def main():
     print('目标窗口客户区 = (%d,%d) %dx%d，内容高 %d' % (tx, ty, tw, th, CONTENT_H))
 
     with open(PORTABLE_CFG, 'w', encoding='utf-16') as f:
-        f.write('{"common":{"autoStart":false,"language":"zh-CN"},'
-                '"shortcutKey":{"cap":"F1","pin":"F3"}}')
+        f.write('{"common":{"autoStart":false,"language":"zh-CN","quickSave":true,'
+                '"saveDir":"%s"},"shortcutKey":{"cap":"F1","pin":"F3"}}'
+                % SAVE_DIR.replace(chr(92), chr(47)))
 
     if os.path.exists(LAST_BIN):
         os.remove(LAST_BIN)
@@ -228,7 +233,7 @@ def main():
         print('== 在选区里点一下开始滚动 ==')
         click(capwnd, (x1 + x2) // 2, (y1 + y2) // 2)
 
-        # 等滚到底：长图工具条出现（4 个按钮，宽度 = 4*32*dpi）
+        # 等滚到底：长图工具条出现（3 个按钮，宽度 = 3*32*dpi）
         longbar = None
         t0 = time.time()
         while time.time() - t0 < 60:
@@ -261,43 +266,33 @@ def main():
         for s in steps:
             print('     ' + s)
 
-        print('== 点长图工具条的"复制"（第 4 个按钮）==')
+        # 收尾改成"保存"了（与录屏同一套，没有"复制"按钮）：quickSave=true +
+        # saveDir 指到测试目录，点保存直接落盘，从文件验证拼接结果
+        print('== 点长图工具条的"保存"（第 3 个按钮）==')
         print('   当前可见 Ling 窗口：')
         for w in windows_of(pid):
             if w['visible'] and w['cls'] == 'Ling':
                 print('     hwnd=0x%X rect=%s' % (w['hwnd'], w['rect']))
         lw, lh = longbar['rect'][2], longbar['rect'][3]
-        b = lw / 4
-        print('   点 (%d,%d)  窗口 0x%X 宽 %d' % (int(3 * b + b / 2), int(lh / 2), longbar['hwnd'], lw))
-        click(longbar['hwnd'], int(3 * b + b / 2), int(lh / 2))
+        b = lw / 3
+        print('   点 (%d,%d)  窗口 0x%X 宽 %d' % (int(2 * b + b / 2), int(lh / 2), longbar['hwnd'], lw))
+        click(longbar['hwnd'], int(2 * b + b / 2), int(lh / 2))
         time.sleep(2.0)
-        # 点中任何一个按钮都会走 ToolLong::onClick 然后 close()，所以进程退出 = 点击确实生效了
+        # 保存是同步落盘（quickSave），点完轮询测试目录
+        saved = None
+        t0 = time.time()
+        while time.time() - t0 < 8:
+            time.sleep(0.5)
+            pngs = [f for f in os.listdir(SAVE_DIR) if f.endswith('.png')]
+            if pngs:
+                saved = os.path.join(SAVE_DIR, pngs[0])
+                break
+        print('   落盘文件：%s' % (saved or '（还没出现）'))
+        # 点中任何一个按钮都会走 ToolLong::onClick 然后 close()
         rc = proc.poll()
         print('   点击后进程状态 = %s' % ('已退出' if rc is not None else '还活着'))
-        if rc is None:
-            print('   仍然可见的 Ling 窗口：')
-            for w in windows_of(pid):
-                if w['visible'] and w['cls'] == 'Ling':
-                    print('     hwnd=0x%X rect=%s' % (w['hwnd'], w['rect']))
-        png_now = read_clipboard_png()
-        print('   剪贴板 PNG：%s' % ('有，%d 字节' % len(png_now) if png_now else '无'))
-        # 列一下剪贴板里到底有什么格式，便于判断是"没写"还是"写了但读法不对"
-        user32.OpenClipboard(None)
-        try:
-            fmt, names = 0, []
-            buf = ctypes.create_unicode_buffer(256)
-            while True:
-                fmt = user32.EnumClipboardFormats(fmt)
-                if not fmt:
-                    break
-                n = user32.GetClipboardFormatNameW(fmt, buf, 256)
-                names.append('%d:%s' % (fmt, buf.value if n else '(标准格式)'))
-            print('   剪贴板格式：%s' % (names or '空'))
-        finally:
-            user32.CloseClipboard()
-        # 有产物就够了，别因为一个推断性子句把结果误报成失败
-        if rc is None and not png_now:
-            print('   !! 点击没生效：进程没退、剪贴板也没东西')
+        if rc is None and not saved:
+            print('   !! 点击没生效：进程没退、也没有落盘文件')
     finally:
         target.kill()
         try:
@@ -306,13 +301,14 @@ def main():
         except Exception:
             pass
 
-    png = read_clipboard_png()
-    if not png:
-        print('!! 剪贴板里没有 PNG（长图的复制没生效？）')
+    pngs = sorted(f for f in os.listdir(SAVE_DIR) if f.endswith('.png'))
+    if not pngs:
+        print('!! 保存目录里没有 PNG（长图的保存没生效？）')
         return 1
+    saved = os.path.join(SAVE_DIR, pngs[0])
+    print('   验证落盘文件：%s' % saved)
     from PIL import Image
-    import io as _io
-    img = Image.open(_io.BytesIO(png)).convert('L')
+    img = Image.open(saved).convert('L')
     w, h = img.size
     print('   拼接结果 %dx%d' % (w, h))
 

@@ -409,12 +409,12 @@ void WinCap::onKey(UINT key)
             if (toClipboard) copyToClipboard();
             else saveToFile();
         }
-        else if (stage == CapStage::Long && capLong && capLong->hasImage()) {
-            // 与 ToolLong::onClick 同一套规则：存盘被取消了就留在原地，图还没丢
-            if (toClipboard) longCopyToClipboard();
-            else if (!longSaveToFile()) return;
-            close();
-        }
+          else if (stage == CapStage::Long && capLong && capLong->hasImage()) {
+              // 收尾只剩"保存"一条路（与录屏一致）：Ctrl+C 也当成保存，别再往剪贴板走。
+              // 与 ToolLong::onClick 同一套规则：存盘被取消了就留在原地，图还没丢
+              if (!longSaveToFile()) return;
+              close();
+          }
         else if (stage == CapStage::Video && capVideo) {
             // 停录、存盘、关窗都在 ToolVideo 那边一条龙做完
             capVideo->onSaveKey(toClipboard);
