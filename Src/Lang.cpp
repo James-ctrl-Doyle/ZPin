@@ -7,8 +7,9 @@
 std::unique_ptr<Lang> lang;
 
 namespace {
-	// 语言文件优先从 exe 同目录的 Lang 子目录加载（绿色部署 / 调试方便），
-	// 那个目录不存在才退回 %appdata%\ScreenCapture\Lang。
+	// 语言文件从 exe 同目录的 Lang 子目录加载（绿色部署 / 调试方便）；
+	// 那个目录不存在就用数据目录（现在也是 exe 同目录）下的 Lang，同样不存在就当没有额外语言。
+	// 注意：内置的 zh-CN / en-US 是内嵌在 exe 里的，这里的目录只用来追加 / 覆盖
 	// directory_iterator 碰到不存在的目录会抛 filesystem_error，
 	// 所以用带 error_code 的重载，目录不在就当没有额外语言。
 	std::vector<std::filesystem::path> getLangFiles()
@@ -116,11 +117,19 @@ void Lang::initLang(const std::wstring& langCode)
 
 std::vector<std::pair<std::wstring, std::wstring>> Lang::getSupportedLang()
 {
+	// 内置这两门（内嵌在 exe 里，不依赖 Lang 目录），其余的从 Lang 目录里扫出来
 	std::vector<std::pair<std::wstring, std::wstring>> result = { {L"简体中文",L"zh-CN"},{L"English",L"en-US"} };
 	for (const auto& entry : getLangFiles()) {
 		std::wstring filename = entry.filename().wstring();
 		auto arr = Ling::Util::splitStr(filename, L'.');
 		if (arr.size() == 3 && arr[2] == L"json") {
+			// 代码已经在内置列表里了就跳过 —— 否则用户把仓库里的 Lang 目录整个拷到 exe 旁边，
+			// 语言菜单里会出现两条"简体中文"、两条"English"
+			bool dup{ false };
+			for (const auto& item : result) {
+				if (item.second == arr[1]) { dup = true; break; }
+			}
+			if (dup) continue;
 			result.push_back({ arr[0] ,arr[1] });
 		}
 	}

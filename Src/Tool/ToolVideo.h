@@ -4,8 +4,9 @@
 class WinCap;
 class Tip;
 // 录屏工具条。两种形态，切换时把 body 的子节点整批重建（同 ToolSub 的做法）：
-//   未录制：MP4 / GIF 二选一 + 系统声 / 麦克风开关 + 开始录制 + 退出
+//   未录制：系统声 / 麦克风开关 + 开始录制 + 退出
 //   录制中：计时文字 + 丢弃 / 存文件 / 存剪切板
+// 只输出 MP4，所以没有格式选择那一组 —— 原先的 MP4 / GIF 二选一随 GIF 一起去掉了
 class ToolVideo : public Ling::WinBase
 {
 public:
@@ -19,15 +20,17 @@ private:
 	void onMinMaxInfo(MINMAXINFO* mmi) override;
 	void showSetting();
 	void showRecording();
-	void onFormatClick(int index);
 	void onTimerCB(UINT id);
 	void startRecord();
-	// 停止录制并另存为文件；计时到上限时也走这里
+	// 停止录制并保存到"保存位置"（勾了快速保存就直接落盘，否则弹另存为）；计时到上限时也走这里
 	void saveFile();
-	// 停止录制后收工：toClipboard 为真则把文件放进剪切板，否则直接删掉
-	void finishRecord(bool toClipboard);
+	// 丢掉这段录制：停录、删临时文件、关掉整个流程
+	void discardRecord();
+	// 把自己（连同悬停提示）顶到 topmost 带最上面。全屏覆盖层一被激活就会被系统提到
+	// 这一带最上面，把这根同样是 topmost 的工具条整个盖住 —— 用户看到的就是
+	// "点完录屏按钮全没了、也退不出来"。形态切换和每秒计时都顺手顶一遍
+	void raiseSelf();
 	void updateTimerText();
-	void applyFormatStyle();
 	// 选中/未选中两套配色，与 ToolSub、ToolMain 的选中效果保持一致
 	void applyToggleStyle(Ling::Button* btn, bool selected);
 	Ling::Button* makeIconBtn(const std::wstring& code);
@@ -42,18 +45,13 @@ private:
 	bool dpiChanged{ false };
 
 	std::unique_ptr<Tip> tip;
-	Ling::Button* btnMp4{ nullptr };
-	Ling::Button* btnGif{ nullptr };
 	Ling::Button* btnSpeaker{ nullptr };
 	Ling::Button* btnMic{ nullptr };
 	Ling::Label* timerLabel{ nullptr };
-	// 0 = MP4，1 = GIF
-	int selectIndex{ 0 };
 	int totalSeconds{ 0 };
 	bool selectSpeaker{ true }, selectMic{ false }, isRecording{ false };
 	// 以下都是逻辑像素，交给 Ling 的 setter 时由其内部乘 dpi
 	static constexpr float btnSize{ 32.f };
-	static constexpr float formatW{ 42.f };
 	static constexpr float timerW{ 112.f };
 	static constexpr float spliterW{ 1.f };
 	static constexpr UINT tickTimerId{ 100 };

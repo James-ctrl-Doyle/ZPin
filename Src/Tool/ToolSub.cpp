@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "../Win/WinPin.h"
+#include "ToolHost.h"
 #include "../Lang.h"
 #include "../Setting.h"
 #include "../Tip.h"
@@ -38,7 +38,7 @@ namespace {
 	}
 }
 
-ToolSub::ToolSub(WinPin* win) :Ling::WinBase(), win(win)
+ToolSub::ToolSub(ToolHost* win) :Ling::WinBase(), win(win)
 {
 	// 跟着宿主窗口的缩放走：WinBase 构造里取的是系统 dpi，WinPin 可能在另一块缩放比例不同的屏上
 	dpi = win->dpi;

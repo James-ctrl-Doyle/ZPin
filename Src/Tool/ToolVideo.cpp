@@ -4,6 +4,13 @@
 #include "../Lang.h"
 #include "../Tip.h"
 #include "ToolVideo.h"
+#include "ToolHost.h"
+
+void ToolVideo::raiseSelf()
+{
+	ToolHost::raiseTopmost(hwnd);
+	if (tip) ToolHost::raiseTopmost(tip->hwnd());
+}
 
 ToolVideo::ToolVideo(WinCap* win) : Ling::WinBase(), win(win)
 {
@@ -57,14 +64,14 @@ void ToolVideo::onMinMaxInfo(MINMAXINFO* mmi)
 
 float ToolVideo::settingWidth() const
 {
-	// 左右内边距 + MP4/GIF + 分隔符 + 系统声/麦克风 + 分隔符 + 开始/退出
-	return formatW * 2 + spliterW * 2 + btnSize * 4;
+	// 系统声/麦克风 + 分隔符 + 开始/退出
+	return spliterW + btnSize * 4;
 }
 
 float ToolVideo::recordingWidth() const
 {
-	// 左右内边距 + 计时 + 分隔符 + 丢弃/存文件/存剪切板
-	return timerW + spliterW + btnSize * 3;
+	// 左右内边距 + 计时 + 分隔符 + 丢弃/保存
+	return timerW + spliterW + btnSize * 2;
 }
 
 Ling::Node* ToolVideo::makeSpliter()
@@ -106,8 +113,6 @@ void ToolVideo::applyToggleStyle(Ling::Button* btn, bool selected)
 void ToolVideo::showSetting()
 {
 	// 重建前先把旧指针作废：removeAllChildren 会连带销毁所有子节点
-	btnMp4 = nullptr;
-	btnGif = nullptr;
 	btnSpeaker = nullptr;
 	btnMic = nullptr;
 	timerLabel = nullptr;
@@ -116,34 +121,14 @@ void ToolVideo::showSetting()
 	body->removeAllChildren();
 	setSize(settingWidth(), btnSize);
 
-	// MP4 / GIF 二选一。高度比按钮条矮一截 + 圆角，选中时是一颗胶囊
-	btnMp4 = body->makeChild<Ling::Button>();
-	btnMp4->setText(L"MP4");
-	btnMp4->setSize(formatW, btnSize);
-	btnMp4->setFontSize(13.f);
-	btnMp4->onClick.add([this](Ling::Button*) { onFormatClick(0); });
-	tip->bind(btnMp4, Lang::get(L"video.outputMp4"));
-
-	btnGif = body->makeChild<Ling::Button>();
-	btnGif->setText(L"GIF");
-	btnGif->setSize(formatW, btnSize);
-	btnGif->setFontSize(13.f);
-	btnGif->onClick.add([this](Ling::Button*) { onFormatClick(1); });
-	tip->bind(btnGif, Lang::get(L"video.outputGif"));
-
-	makeSpliter();
-
 	btnSpeaker = makeIconBtn(L"\ue654");
 	btnSpeaker->onClick.add([this](Ling::Button* btn) {
-		// GIF 不带声音，此时两个音源按钮不可切换
-		if (selectIndex != 0) return;
 		selectSpeaker = !selectSpeaker;
 		applyToggleStyle(btn, selectSpeaker);
 	});
 	tip->bind(btnSpeaker, Lang::get(L"video.recordSystem"));
 	btnMic = makeIconBtn(L"\ue73b");
 	btnMic->onClick.add([this](Ling::Button* btn) {
-		if (selectIndex != 0) return;
 		selectMic = !selectMic;
 		applyToggleStyle(btn, selectMic);
 	});
@@ -158,13 +143,13 @@ void ToolVideo::showSetting()
 	btnClose->onClick.add([this](Ling::Button*) { this->win->close(); });
 	tip->bind(btnClose, Lang::get(L"video.exit"));
 
-	applyFormatStyle();
+	applyToggleStyle(btnSpeaker, selectSpeaker);
+	applyToggleStyle(btnMic, selectMic);
+	raiseSelf();
 }
 
 void ToolVideo::showRecording()
 {
-	btnMp4 = nullptr;
-	btnGif = nullptr;
 	btnSpeaker = nullptr;
 	btnMic = nullptr;
 	timerLabel = nullptr;
@@ -181,41 +166,16 @@ void ToolVideo::showRecording()
 
 	makeSpliter();
 
-	// 丢弃 / 存文件 / 存剪切板，三条路都会停掉录制并结束整个流程
+	// 收尾只有两条路：丢弃 / 保存（用户要求去掉"存剪切板"）。
+	// 保存的图标用对勾（U+E6AD）而不是软盘：软盘跟工具条上"保存截图"那个撞脸，
+	// 而这里按下去是"就这样，收工"，勾更贴切
 	auto btnDiscard = makeIconBtn(L"\ue62d");
-	btnDiscard->onClick.add([this](Ling::Button*) { finishRecord(false); });
+	btnDiscard->onClick.add([this](Ling::Button*) { discardRecord(); });
 	tip->bind(btnDiscard, Lang::get(L"video.stopExit"));
-	auto btnSave = makeIconBtn(L"\ue608");
+	auto btnSave = makeIconBtn(L"\ue6ad");
 	btnSave->onClick.add([this](Ling::Button*) { saveFile(); });
 	tip->bind(btnSave, Lang::get(L"video.stopFile"));
-	auto btnClipboard = makeIconBtn(L"\ue6ad");
-	btnClipboard->onClick.add([this](Ling::Button*) { finishRecord(true); });
-	tip->bind(btnClipboard, Lang::get(L"video.stopClipboard"));
-}
-
-void ToolVideo::onFormatClick(int index)
-{
-	if (selectIndex == index) return;
-	selectIndex = index;
-	// GIF 不录声音，切过去时把两个音源都关掉
-	if (selectIndex == 1) {
-		selectSpeaker = false;
-		selectMic = false;
-	}
-	applyFormatStyle();
-}
-
-void ToolVideo::applyFormatStyle()
-{
-	if (!btnMp4 || !btnGif) return;
-	applyToggleStyle(btnMp4, selectIndex == 0);
-	applyToggleStyle(btnGif, selectIndex == 1);
-	btnMp4->setColor(selectIndex == 0 ? 0x1677ffff : 0x333333ff);
-	btnMp4->setHoverColor(0x1677ffff);
-	btnGif->setColor(selectIndex == 1 ? 0x1677ffff : 0x333333ff);
-	btnGif->setHoverColor(0x1677ffff);
-	applyToggleStyle(btnSpeaker, selectSpeaker);
-	applyToggleStyle(btnMic, selectMic);
+	raiseSelf();
 }
 
 void ToolVideo::startRecord()
@@ -224,19 +184,14 @@ void ToolVideo::startRecord()
 	totalSeconds = 0;
 	showRecording();
 	setTimer(1000, tickTimerId);
-	if (selectIndex == 0) {
-		win->startMp4(selectSpeaker, selectMic);
-	}
-	else {
-		win->startGif();
-	}
+	win->startMp4(selectSpeaker, selectMic);
 }
 
 void ToolVideo::updateTimerText()
 {
 	if (!timerLabel) return;
-	// GIF 上限 6 分钟，MP4 上限 120 分钟
-	const int maxMinutes = (selectIndex == 1) ? 6 : 120;
+	// 上限 120 分钟
+	constexpr int maxMinutes = 120;
 	timerLabel->setText(std::format(L"{:02d}:{:02d} / {:02d}:00", totalSeconds / 60, totalSeconds % 60, maxMinutes));
 }
 
@@ -245,7 +200,10 @@ void ToolVideo::onTimerCB(UINT id)
 	if (id != tickTimerId) return;
 	totalSeconds += 1;
 	updateTimerText();
-	const int maxSeconds = ((selectIndex == 1) ? 6 : 120) * 60;
+	// 每秒顺手把自己顶回最上面：录制途中只要有谁（覆盖层被激活、别的程序弹窗）
+	// 把工具条压下去，最多 1 秒就自己回来 —— 不然用户就是"按钮没了、退不出来"
+	raiseSelf();
+	constexpr int maxSeconds = 120 * 60;
 	if (totalSeconds >= maxSeconds) {
 		// 到上限就自动存盘收工
 		saveFile();
@@ -262,36 +220,35 @@ void ToolVideo::saveFile()
 		win->close();
 		return;
 	}
-	auto tarPath = Util::getSaveFilePath(nullptr, selectIndex == 1 ? L"gif" : L"mp4");
+	// 保存位置 / 快速保存统一走 Util：勾了快速保存就直接进默认目录（默认是"下载"），不弹框
+	auto tarPath = Util::resolveSavePath(L"mp4");
+	bool copied = false;
 	if (!tarPath.empty()) {
-		CopyFile(srcPath.data(), tarPath.data(), false);
+		copied = CopyFile(srcPath.data(), tarPath.data(), false) != 0;
 	}
-	DeleteFile(srcPath.data());
+	// 只有确实写出去了才删临时文件 —— 拷贝失败（没权限、盘满）时留着，
+	// 用户还能去数据目录的 temp 下把这段录像捞出来，删了就真没了
+	if (copied || tarPath.empty()) {
+		DeleteFile(srcPath.data());
+	}
 	win->close();
 }
 
 bool ToolVideo::onSaveKey(bool toClipboard)
 {
 	if (!isRecording) return false;
-	// 停录、存盘、关掉整个流程，这两条都在下面两个函数里一条龙做完
-	if (toClipboard) finishRecord(true);
-	else saveFile();
+	// 录制收尾只剩"保存"一条路（"存剪切板"已按用户要求去掉），所以 Ctrl+C 也当成保存
+	(void)toClipboard;
+	saveFile();
 	return true;
 }
 
-void ToolVideo::finishRecord(bool toClipboard)
+void ToolVideo::discardRecord()
 {
 	hide();
 	killTimer(tickTimerId);
 	auto srcPath = win->stopRecord();
-	if (toClipboard) {
-		// 文件留在临时目录里，剪切板持有的是它的路径，不能删。
-		// 空路径 = 一帧都没录到，没东西可放进剪切板
-		if (!srcPath.empty())
-			Util::addFileToClipboard(srcPath);
-	}
-	else {
-		DeleteFile(srcPath.data());
-	}
+	// 丢掉这段录制：临时文件也删掉。空路径 = 一帧都没录到，程序已经删过了
+	if (!srcPath.empty()) DeleteFile(srcPath.data());
 	win->close();
 }

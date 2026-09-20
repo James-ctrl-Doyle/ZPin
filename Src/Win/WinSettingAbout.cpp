@@ -6,7 +6,8 @@
 
 WinSettingAbout::WinSettingAbout(Ling::WinBase* parent):Ling::Node(parent)
 {
-    std::vector<std::wstring> keys = { L"version",L"project",L"author" };
+    // 只留版本号与本项目地址。原来还有一项指向原作者微信，随 fork 一并去掉
+    std::vector<std::wstring> keys = { L"version",L"project" };
     for (auto& key : keys)
     {
         auto box = makeChild<Ling::Node>();
@@ -27,22 +28,13 @@ WinSettingAbout::WinSettingAbout(Ling::WinBase* parent):Ling::Node(parent)
             auto verStr = std::format(L"{}.{}.{}", ver[0], ver[1], ver[2]);
             btn->setText(verStr);
         }
-        else if (key == L"project") {
-            btn->setText(L"github.com/xland/ScreenCapture");
-            btn->setColor(0x597ef7ff);
-            btn->setHoverColor(0x597ef7ff);
-            btn->onClick.add([this](Ling::Button* btn) {
-                std::wstring downloadUrl{ L"https://github.com/xland/ScreenCapture" };
-                ShellExecute(win->hwnd, L"open", downloadUrl.data(), nullptr, nullptr, SW_SHOWNORMAL);
-                });
-        }
         else {
-            btn->setText(Lang::get(L"about.wechat"));
+            btn->setText(L"github.com/James-ctrl-Doyle/ScreenCapture");
             btn->setColor(0x597ef7ff);
             btn->setHoverColor(0x597ef7ff);
             btn->onClick.add([this](Ling::Button* btn) {
-                Ling::Util::setTextToClipboard(L"liulun_007");
-                MessageBox(win->hwnd, Lang::get(L"about.copySuccess").data(), Lang::get(L"about.sysTip").data(), MB_OK | MB_ICONINFORMATION);
+                std::wstring url{ L"https://github.com/James-ctrl-Doyle/ScreenCapture" };
+                ShellExecute(win->hwnd, L"open", url.data(), nullptr, nullptr, SW_SHOWNORMAL);
                 });
         }
         btn->setAlignItems(Ling::Align::FlexEnd);

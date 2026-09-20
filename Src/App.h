@@ -12,7 +12,11 @@ class App
 		// 表现为读取访问权限冲突
 		static void dispose();
 		static App* get();
-		void takeScreenShot(int x, int y, int w, int h,ID2D1Bitmap1** img);
+		// 抓一次屏（BGRA、top-down）并做成 D2D 位图。
+// rawOut 非空时顺手把原始像素也拷一份出去 —— 截图历史要留"整屏画面"，
+// 有了它就不必再从 D2D 位图上回读一次（那是整屏 9MB 的读回）
+		void takeScreenShot(int x, int y, int w, int h, ID2D1Bitmap1** img,
+			std::vector<BYTE>* rawOut = nullptr);
 		std::tuple<int, int, int, int> getScreenArea();
 		// 把窗口从屏幕捕获里摘出去：它在屏幕上照常显示、照常能点，但录屏和抓屏都拿不到它。
 		// 录屏工具条压在录制区内部时（全屏录制必然如此）靠这个才不会被录进去。

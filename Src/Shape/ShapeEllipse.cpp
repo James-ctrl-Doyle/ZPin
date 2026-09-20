@@ -1,10 +1,10 @@
 ﻿#include "pch.h"
-#include "Win/WinPin.h"
+#include "Tool/ToolHost.h"
 #include "Tool/ToolMain.h"
 #include "Tool/ToolSub.h"
 #include "ShapeEllipse.h"
 
-ShapeEllipse::ShapeEllipse(WinPin* win) :ShapeBase(win), draggers{
+ShapeEllipse::ShapeEllipse(ToolHost* win) :ShapeBase(win), draggers{
 	D2D1::RectF(0,0,0,0),
 	D2D1::RectF(0,0,0,0),
 	D2D1::RectF(0,0,0,0),

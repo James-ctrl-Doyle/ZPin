@@ -1,10 +1,10 @@
 #pragma once
 #include <include/Ling.h>
-class WinPin;
+class ToolHost;
 class ShapeBase
 {
 public:
-	ShapeBase(WinPin* win);
+	ShapeBase(ToolHost* win);
 	virtual ~ShapeBase();
 	virtual void paint(ID2D1DeviceContext* ctx) = 0;
 	virtual void paintDragger(ID2D1DeviceContext* ctx) {};
@@ -19,7 +19,7 @@ public:
 	virtual bool isValidWithoutDrag() { return false; };
 	bool isInRect(const D2D1_RECT_F rect, const float x, const float y);
 public:
-	WinPin* win;
+	ToolHost* win;
 	bool isUndo;
 	int hoverDraggerIndex{ -1 };
 protected:

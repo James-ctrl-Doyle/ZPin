@@ -1,6 +1,6 @@
 ﻿#include "pch.h"
 #include "App.h"
-#include "Win/WinPin.h"
+#include "Tool/ToolHost.h"
 #include "Tool/ToolMain.h"
 #include "Tool/ToolSub.h"
 #include "History.h"
@@ -8,7 +8,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-ShapeNumber::ShapeNumber(WinPin* win) :ShapeBase(win), draggers{
+ShapeNumber::ShapeNumber(ToolHost* win) :ShapeBase(win), draggers{
 	D2D1::RectF(0,0,0,0),
 	D2D1::RectF(0,0,0,0),
 	D2D1::RectF(0,0,0,0) },
@@ -25,7 +25,7 @@ ShapeNumber::ShapeNumber(WinPin* win) :ShapeBase(win), draggers{
 	isFill = toolSub->isNumberFill;
 }
 
-int ShapeNumber::getNextVal(WinPin* win)
+int ShapeNumber::getNextVal(ToolHost* win)
 {
 	int maxVal{ 0 };
 	for (auto& shape : win->history->shapes) {

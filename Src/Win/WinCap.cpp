@@ -6,10 +6,15 @@
 #include "../App.h"
 #include "../Util.h"
 #include "../Lang.h"
+#include "../Setting.h"
+#include <thread>
 #include "../Update.h"
 #include "CapLong.h"
 #include "CapVideo.h"
-#include "../Tool/ToolCap.h"
+#include "../Tool/ToolMain.h"
+#include "../Tool/ToolSub.h"
+#include "../Shape/ShapeBase.h"
+#include "../Shape/ShapeText.h"
 using namespace Microsoft::WRL;
 
 namespace
@@ -17,11 +22,15 @@ namespace
     constexpr float scaleNum{ 5.f }, srcW{ 50.f }, srcH{ 30.f };
     constexpr float pixImgH{ scaleNum * srcH };
     constexpr float pixW{ srcW * scaleNum };
+    // 原地提示的定时器 id 与显示时长。18 / 19 是 CapLong 的滚动定时器、100 是绘图夹点，
+    // 这里避开它们（宿主窗口上共用一套 id）
+    constexpr UINT tipMsgId = 21;
+    constexpr UINT tipShowMs = 3000;
 }
 
 std::unique_ptr<WinCap> winCap;
 
-WinCap::WinCap() : Ling::WinBase()
+WinCap::WinCap() : ToolHost()
 {
 	setTitle(L"Screen Capture");
     auto [x1, y1, w1, h1] = App::get()->getScreenArea();
@@ -30,8 +39,25 @@ WinCap::WinCap() : Ling::WinBase()
     onMouseMove.add([this](POINT pos) { this->onMove(pos); });
     onMouseUp.add([this](POINT pos, bool isRight) { this->onUp(pos, isRight); });
     onKeyDown.add([this](UINT key) { this->onKey(key); });
-    // 滚动截图的定时器借的是本窗口的，转给 CapLong
-    onTimer.add([this](UINT id) { if (capLong) capLong->onTimerCB(id); });
+    // 滚动截图的定时器借的是本窗口的，转给 CapLong。
+    // id 100 是绘图夹点的自动收起（ToolHost::hoverShapeAt 里起的，与贴图窗口同一套约定）
+    onTimer.add([this](UINT id) {
+        if (id == 100) {
+            if (!shapeHover) {
+                refresh();
+                killTimer(100);
+            }
+            return;
+        }
+        // 原地提示到点了：收掉它并重画
+        if (id == tipMsgId) {
+            tipLayout.Reset();
+            killTimer(tipMsgId);
+            refresh();
+            return;
+        }
+        if (capLong) capLong->onTimerCB(id);
+    });
     onDestroy.add([this]() { this->onClosed(); });
     // DPI 变了（用户改了缩放比例）：系统会按新旧缩放比把窗口整体缩放一圈，但本窗口是铺满整个
     // 虚拟桌面的，缩放之后就盖不住桌面了，而且底图、选区（cutMask->maskRect）用的都是物理像素，
@@ -53,14 +79,28 @@ WinCap::~WinCap()
 {
 }
 
-void WinCap::init()
+void WinCap::init(const std::wstring& enter)
 {
-    // 双击托盘图标会连着来两下，已经开着就不再建第二个
-    if (winCap) return;
+    // 双击托盘图标会连着来两下，功能热键也能在截图窗口开着的时候再按一次。
+    // 已经开着就只更新"框完之后去哪"，不再建第二个窗口 —— 用户还没开始拖框时这一下
+    // 相当于改了目标功能（先按 F1 再按其它功能键），已经开始拖了就什么都不会发生
+    if (winCap) {
+        winCap->enterArg = enter;
+        return;
+    }
+    // 每次开截图顺手清一次过期历史（保留天数在设置里，0 = 不留历史）
+    Util::pruneShots(Setting::get()->getHistoryDays());
     auto ptr = new WinCap();
     winCap.reset(ptr);
-	ptr->cutMask = std::make_unique<CutMask>(ptr);
+    // 翻历史的按键（默认 , 和 .）在这里取一次，之后按键分发直接比虚拟键码
+    ptr->historyPrevVk = Setting::get()->effectiveShortcutVk(L"prevShot");
+    ptr->historyNextVk = Setting::get()->effectiveShortcutVk(L"nextShot");
+    ptr->enterArg = enter;
+    ptr->cutMask = std::make_unique<CutMask>(ptr);
     ptr->createNativeWindow(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, WS_POPUP);//WS_EX_TOPMOST
+    // 热键唤出的覆盖层必须抢前台：不抢的话键盘消息（ESC/Ctrl+C）到不了这里，
+    // 文字编辑也会因为 SetFocus 被系统立刻收回（WM_KILLFOCUS）而立不住
+    ptr->takeForeground();
 }
 
 WinCap* WinCap::get()
@@ -75,7 +115,8 @@ void WinCap::dispose()
 
 void WinCap::onCreated()
 {
-    App::get()->takeScreenShot(x, y, w, h, &screenImg);
+    // 顺手把整屏原图也拷一份：截图历史要留"当时整个屏幕的画面"
+    App::get()->takeScreenShot(x, y, w, h, &screenImg, &screenRaw);
 	auto d2d = Ling::D2D::get();
     // 画布铺满窗口，走 swap chain（双缓冲）后端，避免调整选区时整帧闪烁
     canvas = body->makeChild<Ling::Canvas>();
@@ -84,6 +125,9 @@ void WinCap::onCreated()
     d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), brushText.GetAddressOf());
     d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(0x000000, 0.56f), brushBg.GetAddressOf());
     d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.5f, 1.f, 0.5f), crossBrush.GetAddressOf());
+    // 原地提示的底与字：半透明黑底 + 白字，和选区里那个坐标标签一个路子
+    d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(0x000000, 0.72f), brushTipBg.GetAddressOf());
+    d2d->deviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), brushTipText.GetAddressOf());
     POINT pos;
     GetCursorPos(&pos);
     ScreenToClient(hwnd, &pos);
@@ -102,11 +146,50 @@ void WinCap::layout()
     D2D1_RECT_F destRect = D2D1::RectF(0, 0, (float)w, (float)h);
     if (!hideScreenImg) {
         ctx->DrawBitmap(screenImg.Get(), destRect);
+        // 标注画在底图之上、蒙版之下：蒙版只压暗选区外面，所以选区里的标注照常看得见。
+        // 裁到选区上 —— 拖动时手指会跑到选区外，裁掉之后所见即所得，
+        // 与导出（导出也只取选区那一块）一致。
+        // 这里的坐标系是桌面物理像素（本窗口铺满桌面且不做缩放），shape 存的就是这个坐标
+        if (history && cutMask->hasRect()) {
+            auto& mr = cutMask->maskRect;
+            ctx->PushAxisAlignedClip(D2D1::RectF(mr.left, mr.top, mr.right, mr.bottom), D2D1_ANTIALIAS_MODE_ALIASED);
+            paintShapes(ctx);
+            ctx->PopAxisAlignedClip();
+        }
     }
     cutMask->paint(ctx);
     if (capLong) capLong->paint(ctx);
     paintPix(ctx);
+    paintTip(ctx);
     canvas->finishPaint();
+}
+
+// 在选区正中画一行提示。这不是标注，不进 history、也不进导出图 —— 它只是给用户看一眼
+void WinCap::paintTip(ID2D1DeviceContext* ctx)
+{
+    if (!tipLayout || !brushTipBg || !cutMask->hasRect()) return;
+    DWRITE_TEXT_METRICS tm{};
+    if (FAILED(tipLayout->GetMetrics(&tm))) return;
+    auto pad = 8.f * dpi;
+    auto boxW = tm.width + pad * 2;
+    auto boxH = tm.height + pad * 2;
+    auto& mr = cutMask->maskRect;
+    auto cx = (mr.left + mr.right) / 2.f;
+    auto cy = (mr.top + mr.bottom) / 2.f;
+    D2D1_RECT_F bgRect{ cx - boxW / 2, cy - boxH / 2, cx + boxW / 2, cy + boxH / 2 };
+    // 选区太小时（比提示框还窄）也别画到选区外面去
+    if (bgRect.left < 0) { bgRect.right -= bgRect.left; bgRect.left = 0; }
+    ctx->FillRectangle(bgRect, brushTipBg.Get());
+    ctx->DrawTextLayout({ bgRect.left + pad, bgRect.top + pad }, tipLayout.Get(), brushTipText.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
+}
+
+void WinCap::showTip(const std::wstring& text)
+{
+    tipLayout = Ling::D2D::get()->makeTextLayout(text, 13.f * dpi);
+    // 先撤掉上一次的定时器再重新计时：连着点两次二维码，第二次应该重新显示满 3 秒
+    killTimer(tipMsgId);
+    setTimer(tipShowMs, tipMsgId);
+    refresh();
 }
 
 BOOL WinCap::setCursor()
@@ -120,6 +203,9 @@ BOOL WinCap::setCursor()
         return TRUE;
     }
     if (stage == CapStage::Adjust) {
+        // 选了画笔：光标归绘图，不能再给"调整选区"那套箭头 ——
+        // 否则选了"线条"却满屏四向箭头，看着就像只能拖选区、画不了东西
+        if (setToolCursor()) return TRUE;
         POINT pos{};
         GetCursorPos(&pos);
         ScreenToClient(hwnd, &pos);
@@ -252,6 +338,10 @@ void WinCap::paintPix(ID2D1DeviceContext* ctx)
 
 void WinCap::onKey(UINT key)
 {
+    // 编辑文本时所有按键都归 TextBox：否则 ESC 会把整个截图窗口连图带标注关掉、
+    // Ctrl+Z 会去撤销上一个图形
+    if (editingText) return;
+
     auto func = []() {
         POINT pos;
         GetCursorPos(&pos);
@@ -261,7 +351,25 @@ void WinCap::onKey(UINT key)
         return cr;
     };
     if (key == VK_ESCAPE) {
+        // 宿主在这个事件里先执行（先注册先调用），所以编辑中由这里**明确**收尾 ——
+        // 不能指望 TextBox 自己的 ESC 分支：它失焦收尾会把 editingText 清掉，
+        // 一旦焦点状态有变，轮到宿主时编辑已经没了，ESC 就会落进下面的关窗分支
+        if (editingText) {
+            editingText->finishEdit();
+            // 顺手取消画笔选中：ESC 是"退出编辑"，该回到普通截图状态，
+            // 而不是让下一次点击又落出一个新输入框
+            if (toolMain) toolMain->cancelSelect();
+            return;
+        }
+        // TextBox 已在这一次按键里先收过尾的时间窗内不关窗（保底）
+        if (GetTickCount64() - textEditEndedAt < 300) return;
         close();
+    }
+    // 绘图：撤销 / 重做。只在"调整选区"这个阶段有意义（那会儿绘图工具条在）。
+    // 键盘消息常常是落在工具条上的，ToolMain 会把 onKeyDown 转回这里
+    else if ((key == 'Z' || key == 'Y') && stage == CapStage::Adjust && (GetKeyState(VK_CONTROL) & 0x8000)) {
+        if (key == 'Z') history->undo();
+        else history->redo();
     }
     else if (key == 'H' && (GetKeyState(VK_CONTROL) & 0x8000)) {
 		auto cr = func();
@@ -294,7 +402,13 @@ void WinCap::onKey(UINT key)
     // 这两个阶段里键盘消息进的往往是工具条，ToolLong / ToolVideo 会把 onKeyDown 转回这里
     else if ((key == 'S' || key == 'C') && (GetKeyState(VK_CONTROL) & 0x8000)) {
         const bool toClipboard{ key == 'C' };
-        if (stage == CapStage::Long && capLong && capLong->hasImage()) {
+        if (stage == CapStage::Adjust) {
+            // 截图阶段也认 Ctrl+S / Ctrl+C，和工具条上那两个按钮一个意思。
+            // 在此之前只有回车能复制、没有键盘存盘，长图/录屏那两阶段反而都有
+            if (toClipboard) copyToClipboard();
+            else saveToFile();
+        }
+        else if (stage == CapStage::Long && capLong && capLong->hasImage()) {
             // 与 ToolLong::onClick 同一套规则：存盘被取消了就留在原地，图还没丢
             if (toClipboard) longCopyToClipboard();
             else if (!longSaveToFile()) return;
@@ -305,7 +419,28 @@ void WinCap::onKey(UINT key)
             capVideo->onSaveKey(toClipboard);
         }
     }
+    // 历史翻页的专用按键（设置-快捷键里可改，默认 , 和 .）。
+    // 只在没按住任何修饰键时才认 —— 否则用户把 , 绑成翻页之后，Ctrl+, 之类也会被吃掉；
+    // 而且 Ctrl+S / Ctrl+Z 这些现成组合必须原样保留。翻不动时什么都不做（这类键是
+    // 专门为翻页绑的，不该像方向键那样再退回去干别的）
+    else if (key != 0 && (key == historyPrevVk || key == historyNextVk)
+        && !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)
+        && !(GetKeyState(VK_SHIFT) & 0x8000) && !(GetKeyState(VK_LWIN) & 0x8000)
+        && !(GetKeyState(VK_RWIN) & 0x8000)) {
+        if (key == historyPrevVk && canGoPrevShot()) goPrevShot();
+        else if (key == historyNextVk && canGoNextShot()) goNextShot();
+        return;
+    }
     else if (key == VK_UP || key == VK_DOWN || key == VK_LEFT || key == VK_RIGHT) {
+        // ← / → 优先用来翻看上一条 / 下一条截图（连标注一起回到当时的样子做不到，
+        // 见 applyShot 的注释）。历史里翻不动时，才退回原来的"空格挪光标一格"，
+        // 这样第一次截图时方向键还是老行为。
+        // ⚠ 只在"调整选区"阶段兼作翻页：Select 阶段（刚按 F1 还没框）方向键是
+        // "1 像素 1 像素挪光标、对准起点"用的，那个阶段不抢它 —— 想看上一张请用
+        // 设置里配的翻页键（默认 , 和 .），那两个键两个阶段都生效
+        const bool arrowCanNav = (stage == CapStage::Adjust);
+        if (arrowCanNav && key == VK_LEFT && canGoPrevShot()) { goPrevShot(); return; }
+        if (arrowCanNav && key == VK_RIGHT && canGoNextShot()) { goNextShot(); return; }
         POINT pos;
         GetCursorPos(&pos);
         if (key == VK_UP) pos.y -= 1;
@@ -315,7 +450,7 @@ void WinCap::onKey(UINT key)
         SetCursorPos(pos.x, pos.y); // 后面的 WM_MOUSEMOVE 会让 onMove 跟着刷新
     }
     // Enter 与 Ctrl+C 一个意思：把图存进剪切板。比 Ctrl+C 多管一个阶段 ——
-    // 选区刚框好（Adjust）时也认，那会儿等于点了 ToolCap 上的复制按钮
+    // 选区刚框好（Adjust）时也认，那会儿等于点了工具条上的复制按钮
     else if (key == VK_RETURN) {
         copyCurrentStage();
     }
@@ -351,24 +486,6 @@ std::tuple<int, int, int, int> WinCap::getCMYK(const BYTE& r, const BYTE& g, con
         static_cast<int>(std::round(K * 100))
     );
 }
-ComPtr<ID2D1Bitmap1> WinCap::getCutImg()
-{
-    ComPtr<ID2D1Bitmap1> cutImg;
-    auto& maskRect = cutMask->maskRect;
-    const UINT32 cw = (UINT32)(maskRect.right - maskRect.left);
-    const UINT32 ch = (UINT32)(maskRect.bottom - maskRect.top);
-    if (cw == 0 || ch == 0) return cutImg;
-    D2D1_BITMAP_PROPERTIES1 prop{};
-    prop.pixelFormat = screenImg->GetPixelFormat();
-    prop.bitmapOptions = D2D1_BITMAP_OPTIONS_NONE;
-    screenImg->GetDpi(&prop.dpiX, &prop.dpiY);
-    Ling::D2D::get()->deviceContext->CreateBitmap(D2D1::SizeU(cw, ch), nullptr, 0, &prop, cutImg.GetAddressOf());
-    auto start = D2D1::Point2U(0, 0);
-    auto rect = D2D1::RectU((UINT32)maskRect.left, (UINT32)maskRect.top, (UINT32)maskRect.right, (UINT32)maskRect.bottom);
-    cutImg->CopyFromBitmap(&start, screenImg.Get(), &rect);
-    return cutImg;
-}
-
 LRESULT WinCap::onHitTest(const POINT pos)
 {
     // 录屏阶段整窗让出鼠标：用户要能直接操作被录的那个应用
@@ -378,8 +495,12 @@ LRESULT WinCap::onHitTest(const POINT pos)
 
 void WinCap::onDown(POINT pos, bool isRight)
 {
+    // 编辑文本时，落在文本框里的点击整个交给 TextBox（它自己订阅了窗口的鼠标事件）。
+    // 这里不能抢先 SetCapture / 置 isMouseDown，否则拖选文本会被当成拖 shape 或调选区
+    if (editingText && textBox && textBox->isPosIn(pos)) return;
+
+    // 右键不再退出截图（原来这里直接 close()）。什么都不做：取消用 ESC 或工具条上的关闭
     if (isRight) {
-        close();
         return;
     }
     // 选区框好之后，窗口里任意位置双击都等于点了工具条上的"复制到剪切板"。
@@ -391,7 +512,7 @@ void WinCap::onDown(POINT pos, bool isRight)
         && std::abs(pos.y - lastDownPos.y) <= GetSystemMetrics(SM_CYDOUBLECLK);
     lastDownTime = now;
     lastDownPos = pos;
-    if (isDblClick && stage == CapStage::Adjust) {
+    if (isDblClick && stage == CapStage::Adjust && !hasTool()) {
         copyToClipboard();
         return;
     }
@@ -400,15 +521,28 @@ void WinCap::onDown(POINT pos, bool isRight)
         cutMask->startMakeRect(pos);
     }
     else if (stage == CapStage::Adjust) {
+        // 选了画笔、而且按在选区里：这一下归绘图，不是调整选区
+        if (hasTool() && isPosInMask(pos)) {
+            isMouseDown = true;
+            SetCapture(hwnd);
+            if (!beginShape(pos)) {
+                isMouseDown = false;
+                ReleaseCapture();
+            }
+            return;
+        }
         // 选区外面按下不是重新框选，而是按落点所在的那一块调对应的边或角
         isPress = true;
         cutMask->startAdjust(pos);
-        layoutTool(toolCap.get());
+        layoutTools();
     }
 }
 
 void WinCap::onMove(POINT pos)
 {
+    // 编辑文本时鼠标交给 TextBox，别让 hoverShapeAt 去画夹点、换光标
+    if (editingText && textBox && textBox->isPosIn(pos)) return;
+
     if (stage == CapStage::Select) {
         if (isPress) {
             cutMask->makeRect(pos);
@@ -421,10 +555,19 @@ void WinCap::onMove(POINT pos)
         }
     }
     else if (stage == CapStage::Adjust) {
-        if (!isPress) return;
+        // 画笔按着：拖的是图形
+        if (hasTool() && isMouseDown) {
+            dragShape(pos);
+            return;
+        }
+        if (!isPress) {
+            // 没按下时给画笔一点悬停反馈（夹点、光标）
+            if (hasTool()) hoverShapeAt(pos);
+            return;
+        }
         cutMask->adjust(pos);
-        // 选区变了，工具条跟着走位
-        layoutTool(toolCap.get());
+        // 选区变了，整组工具条跟着走位
+        layoutTools();
     }
     else if (stage == CapStage::Long && capLong) {
         capLong->onMove(pos);
@@ -447,9 +590,15 @@ void WinCap::onUp(POINT pos, bool isRight)
         }
         stage = CapStage::Adjust;
         refresh();  // 收掉放大镜
-        makeToolCap();
+        makeTools();
     }
     else if (stage == CapStage::Adjust) {
+        if (hasTool() && isMouseDown) {
+            isMouseDown = false;
+            ReleaseCapture();
+            endShape(pos);
+            return;
+        }
         isPress = false;
     }
     else if (stage == CapStage::Long && capLong) {
@@ -466,7 +615,8 @@ void WinCap::onClosed()
     isClosed = true;
     if (capVideo) capVideo->dispose();
     if (capLong) capLong->dispose();
-    if (toolCap) toolCap->close();
+    if (toolSub) toolSub->close();
+    if (toolMain) toolMain->close();
     Ling::App::get()->dq.TryEnqueue([]() {
         winCap.reset();
         // 用完即走模式下截图结束就退出进程，与 App 构造里的判断对称。
@@ -490,26 +640,114 @@ void WinCap::stopIfRecording()
     winCap->capVideo->stop();
 }
 
-void WinCap::makeToolCap()
+void WinCap::makeTools()
 {
-    if (toolCap) {
-        layoutTool(toolCap.get());
-        toolCap->show();
-        return;
+    if (!toolMain) {
+        // 工具条自己会在构造里建窗口。绘图子系统（Shape* / History）认的是 ToolHost，
+        // WinCap 正是它的一个宿主，所以这里建出来的跟贴图窗口用的是同一套代码。
+        // 传 capTools=true：这一根上除了绘图按钮还带截长图 / 录屏 / 文字识别 / 二维码 ——
+        // 原先那根独立的 ToolCap 并进来了，两根条合成一根
+        toolMain = std::make_unique<ToolMain>(this, true);
+        toolSub = std::make_unique<ToolSub>(this);
     }
-    toolCap = std::make_unique<ToolCap>(this);
-    // 尺寸在 ToolCap 构造里算好了，这里只定位；两者都要在建窗口之前设好
-    layoutTool(toolCap.get());
-    toolCap->createNativeWindow(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, WS_POPUP);
+    // 无论这次是新建还是复用，都要露出来 + 按当前选区重摆一次。
+    // "复用"这条路上必须显式 show：翻历史回到"还没框"那一步时工具条是被 hide 掉的
+    toolMain->show();
+    layoutTools();
+}
+
+// 一整组工具条：主条（+ 画笔选项）右对齐摞在选区外侧。
+// 单根条的规则见 layoutTool()，这里在它之上把整组当成一块来摆 ——
+// 因为选区靠近屏幕边缘时得整体翻到上方，不能每根条各判各的。
+void WinCap::layoutTools()
+{
+    // 只有"调整选区"这个阶段归这里管：长图 / 录屏阶段各自的工具条由它们自己摆
+    if (stage != CapStage::Adjust) return;
+
+    struct Bar { Ling::WinBase* win; int h; };
+    std::vector<Bar> bars;
+    if (toolMain) bars.push_back({ toolMain.get(), (int)(toolMain->h + 0.5f) });
+    const bool showSub = toolMain && toolSub && !toolMain->curId.empty() && toolSub->hasContent();
+    if (showSub) bars.push_back({ toolSub.get(), (int)(toolSub->getDesiredHeight() + 0.5f) });
+
+    // 选区换算到屏幕坐标
+    const int ml = x + (int)cutMask->maskRect.left;
+    const int mt = y + (int)cutMask->maskRect.top;
+    const int mr = x + (int)cutMask->maskRect.right;
+    const int mb = y + (int)cutMask->maskRect.bottom;
+    RECT maskScrRect{ ml, mt, mr, mb };
+    HMONITOR hMon = MonitorFromRect(&maskScrRect, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{ sizeof(MONITORINFO) };
+    if (!hMon || !GetMonitorInfo(hMon, &mi)) {
+        auto [ax, ay, aw, ah] = App::get()->getScreenArea();
+        mi.rcWork = RECT{ ax, ay, ax + aw, ay + ah };
+    }
+    const auto& wa = mi.rcWork;
+
+    const int gap = (int)(cutMask->strokeWidth + 2.f * dpi + 0.5f);  // 与框选边框的间距，同 layoutTool
+    const int barGap = (int)(2.f * dpi + 0.5f);                     // 条与条之间的缝
+    int totalH{ 0 };
+    for (auto& b : bars) totalH += b.h;
+    totalH += barGap * (int)(bars.size() - 1);
+
+    const bool fitBelow = (mb + gap + totalH) <= wa.bottom;
+    const bool fitAbove = (mt - gap - totalH) >= wa.top;
+    int y0{ 0 };
+    int rightEdge = mr;
+    if (fitBelow) {
+        y0 = mb + gap;                       // 选区下方
+    }
+    else if (fitAbove) {
+        y0 = mt - gap - totalH;              // 上方
+    }
+    else {
+        // 上下都不够：盖在选区右下角内部，与右 / 底各留 3*dpi（与 layoutTool 一致）
+        const int pad = (int)(3.f * dpi + 0.5f);
+        y0 = mb - pad - totalH;
+        rightEdge = mr - pad;
+    }
+    // 兜底：整组不越出所在显示器工作区
+    if (y0 + totalH > wa.bottom) y0 = wa.bottom - totalH;
+    if (y0 < wa.top) y0 = wa.top;
+
+    int yy = y0;
+    for (auto& b : bars) {
+        const int bw = (int)(b.win->w + 0.5f);
+        int bx = rightEdge - bw;
+        if (bx < wa.left) bx = wa.left;
+        if (bx + bw > wa.right) bx = wa.right - bw;
+        b.win->setPosition(bx, yy);
+        yy += b.h + barGap;
+    }
+    // ToolSub 的位置由它自己按 ToolMain 算 —— 它带一个朝上的小箭头，得贴着主条
+    if (showSub) {
+        toolSub->updatePosition(wa);
+    }
+    else if (toolSub) {
+        toolSub->hideTools();
+    }
+}
+
+bool WinCap::isPosInMask(POINT pos) const
+{
+    if (!cutMask->hasRect()) return false;
+    auto& r = cutMask->maskRect;
+    return pos.x >= r.left && pos.x < r.right && pos.y >= r.top && pos.y < r.bottom;
 }
 
 bool WinCap::enterByArg()
 {
-    auto& args = Ling::App::get()->args;
-    auto it = args.find(L"--enter");
-    if (it == args.end()) return false;
-    auto& val = it->second;
-    // 下面这几条路本来都是从 ToolCap 的按钮进的，start* 会检查选区是不是已经定下来了
+    // 目标功能有两个来源：这次截图自己带的（设置页里配的功能热键），以及进程启动时的
+    // 命令行 --enter=xxx。前者优先 —— 它是用户刚刚按下的动作，后者只是启动这个进程时的
+    // 约定（比如 --enter=tray 起的进程一直待命，之后用户按哪个功能键就该走哪个功能）
+    auto val{ enterArg };
+    if (val.empty()) {
+        auto& args = Ling::App::get()->args;
+        auto it = args.find(L"--enter");
+        if (it == args.end()) return false;
+        val = it->second;
+    }
+    // 下面这几条路本来都是从工具条上的按钮进的，start* 会检查选区是不是已经定下来了
     stage = CapStage::Adjust;
     refresh();      //收掉放大镜：这几条路都是马上要换阶段或者弹窗，屏幕上不能留着它
     if (val == L"long") startLong();
@@ -523,11 +761,21 @@ bool WinCap::enterByArg()
     return true;
 }
 
+void WinCap::raiseToolbars()
+{
+	ToolHost::raiseToolbars();
+	// 长图 / 录屏阶段的工具条不在 ToolHost 的成员里（ToolLong / ToolVideo 各自有窗口），
+	// 基类那遍顶不到它们，这里补上。见头文件注释：漏了这一步的表现就是
+	// "点了录屏，工具条上的按钮全没了，也退不出来"
+	raiseTopmost(capLong ? capLong->toolHwnd() : nullptr);
+	raiseTopmost(capVideo ? capVideo->toolHwnd() : nullptr);
+}
+
 void WinCap::relayoutTool()
 {
     if (capLong) capLong->layoutTool();
     else if (capVideo) capVideo->layoutTool();
-    else if (toolCap) layoutTool(toolCap.get());
+    else layoutTools();
 }
 
 void WinCap::layoutTool(Ling::WinBase* tool)
@@ -586,19 +834,37 @@ void WinCap::enterLiveStage()
     // 选区这时已经定死了，标签也没什么可看的，直接不画 —— 这样选区内就真的什么都不画了，
     // 不必再拿 WDA_EXCLUDEFROMCAPTURE 去摘整块屏幕大小的宿主窗口
     cutMask->hideLabel = true;
-    if (toolCap) toolCap->hide();
+    // 工具条收掉：从这里开始鼠标要留给被录 / 被滚的那个窗口，
+    // 屏幕上能看见的东西也都会被录进去或滚进长图
+    if (toolMain) {
+        toolMain->cancelSelect();
+        toolMain->hide();
+    }
+    if (toolSub) toolSub->hideTools();
     // 原来的 WinLong / WinVideo 建窗口时就是 topmost，这里补上
     SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     refresh();
 }
 
+// 工具条上"只有截图那一根才有"的功能按钮落到这里。start* 自己会检查选区定下来没有，
+// 所以这里不做额外判断 —— 没框好时它们本来就是什么都不做
+void WinCap::onCapAction(const std::wstring& id)
+{
+    if (id == L"long") startLong();
+    else if (id == L"video") startVideo();
+    else if (id == L"ocr") startOcr();
+    else if (id == L"qrcode") startQrcode();
+}
+
 void WinCap::startPin()
 {
-    if (!cutMask->hasRect()) return;
+    // 把选区（含标注）合成出来，再原位贴成一个贴图窗口。
+    // 以前是让 WinPin 回头来取 getCutImg()，现在走像素 —— 因为出去的那张图要带上标注
+    std::vector<BYTE> pixels;
+    int cw{ 0 }, ch{ 0 };
+    if (!getCutPixels(pixels, cw, ch)) return;
     auto& maskRect = cutMask->maskRect;
-    // WinPin 构造里会回头来取 getCutImg()，所以得先把它建起来再关自己
-    WinPin::init(int(maskRect.left) + x, int(maskRect.top) + y,
-        int(maskRect.right - maskRect.left), int(maskRect.bottom - maskRect.top));
+    WinPin::initFromData(int(maskRect.left) + x, int(maskRect.top) + y, cw, ch, pixels, 1.f, false);
     close();
 }
 
@@ -617,18 +883,13 @@ void WinCap::startVideo()
     stage = CapStage::Video;
     enterLiveStage();
     capVideo = std::make_unique<CapVideo>(this);
-    // ToolCap 原地换成 ToolVideo
+    // 工具条原地换成 ToolVideo
     capVideo->makeTool();
 }
 
 void WinCap::startMp4(bool useSpeaker, bool useMic)
 {
     if (capVideo) capVideo->startMp4(useSpeaker, useMic);
-}
-
-void WinCap::startGif()
-{
-    if (capVideo) capVideo->startGif();
 }
 
 std::wstring WinCap::stopRecord()
@@ -695,15 +956,35 @@ void WinCap::setMouseTransparent(bool transparent)
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 }
 
-// 文字识别由外部插件进程来做，这边只负责把选区里的像素递过去
+// 文字识别改成程序内自己做（Windows.Media.Ocr）：
+// 把选区（含标注）贴成一个贴图窗口，并让它建好就自动识别一遍，
+// 用户在那个窗口里像在编辑器里那样拖选文字、Ctrl+C 复制。
+// 与 startPin 一样要先建 WinPin 再关自己
 void WinCap::startOcr()
 {
     std::vector<BYTE> pixels;
     int cw{ 0 }, ch{ 0 };
     if (!getCutPixels(pixels, cw, ch)) return;
-    // 插件缺失时 openWithImageReader 会打开下载页，同样得让位，所以不看返回值
-    Util::openWithImageReader(cw, ch, pixels.data());
+    auto& maskRect = cutMask->maskRect;
+    WinPin::initFromData(int(maskRect.left) + x, int(maskRect.top) + y, cw, ch, pixels, 1.f, true);
     close();
+}
+
+// 截图过程中按贴图热键（F3）：立刻收尾 —— 截图 → 存进剪贴板 → 贴到桌面上。
+// 与"框完点钉住"的差别只是顺手复制了一份，方便马上粘到别处。
+// 还没框出选区时返回 false，让调用方（热键那一侧）去决定要不要提示
+bool WinCap::finishToPin()
+{
+    if (!cutMask->hasRect()) return false;
+    std::vector<BYTE> pixels;
+    int cw{ 0 }, ch{ 0 };
+    if (!getCutPixels(pixels, cw, ch)) return false;   // 顺带记下"最近一次截图"
+    Util::saveToClipboard(cw, ch, pixels.data());
+    auto& maskRect = cutMask->maskRect;
+    // ocr = true：这条路的下一步多半就是取字，贴出来就直接能选
+    WinPin::initFromData(int(maskRect.left) + x, int(maskRect.top) + y, cw, ch, pixels, 1.f, true);
+    close();
+    return true;
 }
 
 void WinCap::startQrcode()
@@ -712,22 +993,15 @@ void WinCap::startQrcode()
     int cw{ 0 }, ch{ 0 };
     if (!getCutPixels(pixels, cw, ch)) return;
     auto text = Util::decodeQrCode(cw, ch, pixels.data());
-    // 先让截图窗口连工具条一起从屏幕上消失，弹框独占桌面。这里只 hide 不 close：
-    // close() 是把销毁排进 dq 队列的，而 MessageBox 的模态循环同样在泵消息，
-    // 真关了就会在弹框还开着的时候把脚下的 this 抽掉，弹框关闭后再真正退场
-    hide();
-    if (toolCap) toolCap->hide();
-    auto title = Lang::get(L"about.sysTip");
+    // 不弹框、也不关窗：认出来就静默写进剪切板，然后在选区正中显示一行提示，
+    // 3 秒后自己消失（见 showTip）。这样连扫几张二维码不会被模态框打断
     if (text.empty()) {
-        MessageBox(nullptr, Lang::get(L"cap.qrcodeEmpty").data(), title.data(), MB_OK | MB_ICONINFORMATION);
+        showTip(Lang::get(L"cap.qrcodeEmpty"));
     }
     else {
-        auto tip = text + L"\n\n" + Lang::get(L"cap.qrcodeCopy");
-        if (MessageBox(nullptr, tip.data(), title.data(), MB_OKCANCEL | MB_ICONINFORMATION) == IDOK) {
-            Ling::Util::setTextToClipboard(text);
-        }
+        Ling::Util::setTextToClipboard(text);
+        showTip(Lang::get(L"cap.qrcodeCopied"));
     }
-    close();
 }
 
 void WinCap::saveToFile()
@@ -736,15 +1010,21 @@ void WinCap::saveToFile()
     int cw{ 0 }, ch{ 0 };
     if (!getCutPixels(pixels, cw, ch)) return;
     // 另存为对话框是 WinCap 的附属窗口，而 WinCap 自己不是 topmost，对话框也就待在普通层；
-    // ToolCap 却是 topmost 的，topmost 那一层永远盖在普通层之上，于是工具条浮在对话框上面。
+    // 工具条却是 topmost 的，topmost 那一层永远盖在普通层之上，于是工具条浮在对话框上面。
     // 所以开对话框前先把工具条降回普通层，关掉之后再压回去
     auto setToolTopmost = [this](bool topmost) {
-        if (!toolCap || !toolCap->hwnd) return;
-        SetWindowPos(toolCap->hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
-            0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        // 写死成 WinBase* 的数组：两个都是派生类指针，直接放 initializer_list 推不出公共类型
+        Ling::WinBase* tools[] = { toolMain.get(), toolSub.get() };
+        for (auto t : tools) {
+            if (!t || !t->hwnd) continue;
+            SetWindowPos(t->hwnd, topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
+                0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
     };
-    setToolTopmost(false);
-    auto path = Util::getSaveFilePath(hwnd);
+    // 快速保存不弹框，也就不用降层 —— 降层只为绕开"对话框在普通层、工具条在 topmost"这件事
+    const bool quick = Setting::get()->getQuickSave();
+    setToolTopmost(quick);
+    auto path = Util::resolveSavePath(L"png", hwnd);
     // 对话框关掉后本窗口会被激活（会盖住降下来的工具条），所以只要还留在截图里，
     // 工具条就得重新压回最上层
     if (path.empty()) { //用户取消了
@@ -768,26 +1048,61 @@ void WinCap::copyToClipboard()
     close();
 }
 
-// 从底图上把选区那块像素读回来。screenImg 在 GPU 上，不能直接 Map，
-// 得先拷到一块带 CPU_READ 的位图上。
-bool WinCap::getCutPixels(std::vector<BYTE>& pixels, int& cw, int& ch)
+// 把选区那块**合成**出像素：底图之上盖一层未撤销的标注。
+// 不用直接 CopyFromBitmap 裁底图 —— 那样标注就丢了；标注是画在底图上的，
+// 出去的那张图（复制 / 存盘 / 钉住 / 识别）必须是它俩合起来的样子。
+// 合成用离屏 target，之后拷到 CPU_READ 位图再读回来（GPU 位图不能直接 Map）。
+bool WinCap::getCutPixels(std::vector<BYTE>& pixels, int& cw, int& ch, bool remember)
 {
     if (!screenImg || !cutMask->hasRect()) return false;
     auto& maskRect = cutMask->maskRect;
     const UINT32 cutW = (UINT32)(maskRect.right - maskRect.left);
     const UINT32 cutH = (UINT32)(maskRect.bottom - maskRect.top);
     if (cutW == 0 || cutH == 0) return false;
-    D2D1_BITMAP_PROPERTIES1 prop{
+    // 编辑中的文字是 TextBox 自己那层画的，进不了下面这个离屏 target。先收尾，
+    // 把它交回 ShapeText 自己画，出去的那张图才有这行字
+    if (editingText) editingText->finishEdit();
+
+    auto ctx = Ling::D2D::get()->deviceContext.Get();
+    D2D1_BITMAP_PROPERTIES1 targetProps{
         .pixelFormat{ screenImg->GetPixelFormat() },
+        .dpiX{ 96.0f }, .dpiY{ 96.0f },
+        .bitmapOptions{ D2D1_BITMAP_OPTIONS_TARGET }
+    };
+    ComPtr<ID2D1Bitmap1> targetBmp;
+    if (FAILED(ctx->CreateBitmap(D2D1::SizeU(cutW, cutH), nullptr, 0, &targetProps, targetBmp.GetAddressOf()))) return false;
+
+    ctx->SetTarget(targetBmp.Get());
+    ctx->SetTransform(D2D1::Matrix3x2F::Identity());
+    ctx->BeginDraw();
+    ctx->Clear(D2D1::ColorF(0, 0.0f));
+    // 底图上选区那一块搬到 (0,0)
+    ctx->DrawBitmap(screenImg.Get(),
+        D2D1::RectF(0.f, 0.f, (float)cutW, (float)cutH),
+        1.f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+        D2D1::RectF(maskRect.left, maskRect.top, maskRect.right, maskRect.bottom));
+    // 标注是按桌面物理像素存的，平移到选区原点再画
+    ctx->SetTransform(D2D1::Matrix3x2F::Translation(-maskRect.left, -maskRect.top));
+    if (history) {
+        for (auto& shape : history->shapes) {
+            if (!shape->isUndo) shape->paint(ctx);
+        }
+    }
+    ctx->SetTransform(D2D1::Matrix3x2F::Identity());
+    auto hr = ctx->EndDraw();
+    // 解绑，下面 CopyFromBitmap 才能把它当 source 读
+    ctx->SetTarget(nullptr);
+    if (FAILED(hr)) return false;
+
+    D2D1_BITMAP_PROPERTIES1 prop{
+        .pixelFormat{ targetBmp->GetPixelFormat() },
         .dpiX{ 96.0f }, .dpiY{ 96.0f },
         .bitmapOptions{ D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW }
     };
     ComPtr<ID2D1Bitmap1> cpuBmp;
-    auto hr = Ling::D2D::get()->deviceContext->CreateBitmap(D2D1::SizeU(cutW, cutH), nullptr, 0, &prop, cpuBmp.GetAddressOf());
+    hr = ctx->CreateBitmap(D2D1::SizeU(cutW, cutH), nullptr, 0, &prop, cpuBmp.GetAddressOf());
     if (FAILED(hr)) return false;
-    auto start = D2D1::Point2U(0, 0);
-    auto rect = D2D1::RectU((UINT32)maskRect.left, (UINT32)maskRect.top, (UINT32)maskRect.left + cutW, (UINT32)maskRect.top + cutH);
-    if (FAILED(cpuBmp->CopyFromBitmap(&start, screenImg.Get(), &rect))) return false;
+    if (FAILED(cpuBmp->CopyFromBitmap(nullptr, targetBmp.Get(), nullptr))) return false;
     D2D1_MAPPED_RECT mapped{};
     if (FAILED(cpuBmp->Map(D2D1_MAP_OPTIONS_READ, &mapped))) return false;
     // mapped.pitch 按 GPU 行对齐，可能大于 cutW*4；剪切板和 WIC 都要求紧凑步长，逐行紧缩
@@ -804,5 +1119,212 @@ bool WinCap::getCutPixels(std::vector<BYTE>& pixels, int& cw, int& ch)
     cpuBmp->Unmap();
     cw = (int)cutW;
     ch = (int)cutH;
+    // 顺手把这次的结果记成"最近一次截图"：贴图（F3）取的就是它，与剪贴板无关。
+    // 记的是选区在**屏幕**上的位置，贴图据此回到原位
+    if (remember) {
+        Util::saveLastCapture(cw, ch, (int)maskRect.left + x, (int)maskRect.top + y, pixels.data());
+        // 除了"最近一次"，再往截图历史里记一条（整屏画面 + 这个框），
+        // 之后按 ← 能把这张翻出来重看、重裁
+        saveShotToHistory();
+    }
+    return true;
+}
+
+// ———————————————————— 截图历史 ————————————————————
+
+void WinCap::saveShotToHistory()
+{
+    // 关掉历史（保留天数 0）或这轮没抓到整屏图时，什么都不做
+    if (Setting::get()->getHistoryDays() <= 0) return;
+    if (screenRaw.empty() || !cutMask->hasRect()) return;
+    if (stage != CapStage::Adjust) return;   // 长图/录屏阶段没有"截图框"这回事
+
+    // 框存屏幕坐标（贴图那份 last.bin 也是这么记的）
+    RECT maskScr{
+        x + (LONG)cutMask->maskRect.left,  y + (LONG)cutMask->maskRect.top,
+        x + (LONG)cutMask->maskRect.right, y + (LONG)cutMask->maskRect.bottom
+    };
+    if (!shotFilesLoaded) {
+        shotFilesLoaded = true;
+        for (auto& shot : Util::listShots()) shotFiles.push_back(shot.path);
+    }
+    if (!curShotPath.empty()) {
+        // 这一张已经记过了（改完框又复制了一次之类）：只把框更新回去，别多记一条
+        Util::patchShotRect(curShotPath, maskScr);
+        return;
+    }
+    auto path = Util::makeShotPath();
+    if (path.empty()) return;
+    curShotPath = path;
+    shotFiles.insert(shotFiles.begin(), path);
+    shotIndex = 0;   // 当前这张就是最新那一条
+    // 落盘丢到后台线程：整屏 PNG 编码一百多毫秒，而这里是"复制 / 保存 / 贴图"的必经之路，
+    // 让用户等它不合适。线程只碰自己那份像素副本和路径，不碰窗口状态
+    std::vector<BYTE> pixels = screenRaw;   // 拷一份给它（14MB 级，约 5ms）
+    auto maskCopy = maskScr;
+    const int shotX{ x }, shotY{ y }, shotW{ (int)w }, shotH{ (int)h };
+    std::thread([path, shotX, shotY, shotW, shotH, pixels = std::move(pixels), maskCopy]() {
+        Util::writeShot(path, shotX, shotY, shotW, shotH, pixels, maskCopy);
+    }).detach();
+    // 顺手清掉过期的
+    Util::pruneShots(Setting::get()->getHistoryDays());
+}
+
+bool WinCap::canGoPrevShot()
+{
+    // 刚按 F1、还没框的时候也要能翻（用户在截图态一进来就想看上一张），所以不要求 Adjust
+    if (!historyNavStage()) return false;
+    if (!shotFilesLoaded) {
+        shotFilesLoaded = true;
+        for (auto& shot : Util::listShots()) shotFiles.push_back(shot.path);
+    }
+    return (size_t)(shotIndex + 1) < shotFiles.size();
+}
+
+bool WinCap::canGoNextShot()
+{
+    // 只有"正在看某条历史"时才谈得上往后翻。
+    // shotIndex 0 = 最新那条历史，再往后一步就回到"这次截图"本身（shotIndex = -1），
+    // 所以这里是 >= 0 而不是 > 0 —— 少这一格就会出现"按了 , 之后按 . 回不到截图状态"
+    return historyNavStage() && shotIndex >= 0;
+}
+
+bool WinCap::applyShot(const std::wstring& path)
+{
+    std::vector<BYTE> pixels;
+    int iw{ 0 }, ih{ 0 }, sx{ 0 }, sy{ 0 };
+    RECT maskScr{};
+    if (!Util::loadShot(path, pixels, iw, ih, sx, sy, maskScr)) return false;
+    auto ctx = Ling::D2D::get()->deviceContext.Get();
+    D2D1_BITMAP_PROPERTIES1 props{
+        .pixelFormat{ D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE) },
+        .dpiX{ 96.0f }, .dpiY{ 96.0f }, .bitmapOptions{ D2D1_BITMAP_OPTIONS_NONE }
+    };
+    ComPtr<ID2D1Bitmap1> bmp;
+    if (FAILED(ctx->CreateBitmap(D2D1::SizeU((UINT)iw, (UINT)ih), pixels.data(), iw * 4,
+        props, bmp.GetAddressOf()))) return false;
+
+    // 换底图。hideScreenImg 要显式复位：万一之前进过长图/录屏阶段，它是 true
+    screenImg = bmp;
+    hideScreenImg = false;
+
+    // 框存的是屏幕坐标，换成客户区坐标。换过分辨率/显示器时老历史的整屏尺寸可能和当前
+    // 窗口对不上，那就把它夹进窗口 —— 图照样铺（左上角对齐），别让一条老历史卡住流程
+    auto clamp = [](float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); };
+    const float maxX{ (float)w }, maxY{ (float)h };
+    D2D1_RECT_F r{
+        clamp((float)(maskScr.left - x), 0.f, maxX),
+        clamp((float)(maskScr.top - y), 0.f, maxY),
+        clamp((float)(maskScr.right - x), 0.f, maxX),
+        clamp((float)(maskScr.bottom - y), 0.f, maxY)
+    };
+    // 夹完之后可能退化成一条线甚至反向，保证还是个能用的矩形（CutMask 的最小边长是 4）
+    if (r.right - r.left < 4.f) r.right = std::min(maxX, r.left + 4.f);
+    if (r.bottom - r.top < 4.f) r.bottom = std::min(maxY, r.top + 4.f);
+    cutMask->maskRect = r;
+    cutMask->hideLabel = false;
+
+    // 画布上原来的标注属于上一张，不跟着过来（历史文件里也没有存标注）。
+    // 悬停/拖动指针必须先摘掉，否则指着刚被销毁的图形
+    if (history) history->shapes.clear();
+    shapeHover = nullptr;
+    newShape = nullptr;   // "正在画的那一笔"也指着 shapes 里的对象，一起摘掉
+
+    // 关键：记下"现在这张画布对应哪条历史"。漏掉它的话，之后改完框再翻走时
+    // patch 会打在上一条（curShotPath 还指着旧值）上，这一条的框就白改了
+    curShotPath = path;
+
+    // 回到"框选好了、等下一步"的状态：工具条露出来，光标进选区就能继续调。
+    // ⚠ 从 Select 阶段（刚按 F1、还没框）翻进来时工具条**还没建过** —— 它是切到 Adjust
+    // 时才由 onUp 建的。所以这里必须走一次 makeTools（它认得"已经建了就复用"）
+    stage = CapStage::Adjust;
+    makeTools();
+    // ⚠ 位置必须在这里再摆一次：翻页时工具条是**复用**的，而 layoutTools 只在
+    // makeTools 真的新建窗口那条路上被调用过 —— 不补这一句，工具条会留在上一条选区的
+    // 位置，要等下一次鼠标移动（onMove 里也调 layoutTools）才跟过去。
+    // 用户看到的"按了 , 工具条不跟过去、点一下才过去"就是这个
+    layoutTools();
+    if (toolMain) toolMain->show();
+    raiseToolbars();
+    refresh();
+    return true;
+}
+
+void WinCap::goPrevShot()
+{
+    // 第一次从"这次截图"翻出去之前，先把它的状态记下来，这样 . 能翻回来。
+    // 必须记在 saveShotToHistory 之前：那个函数在 Select 阶段是空操作（没有选区），
+    // 光靠历史文件还原不了"还没框"这个状态
+    if (shotIndex < 0) {
+        liveStage = stage;
+        liveMaskRect = cutMask->maskRect;
+    }
+    // 先把当前这张的状态记进历史（头一次按 ← 时它还没被记过），
+    // 这样往回翻回来，框还是刚改过的样子
+    saveShotToHistory();
+    const int next = shotIndex + 1;
+    if (next < 0 || (size_t)next >= shotFiles.size()) return;
+    if (!applyShot(shotFiles[next])) return;
+    shotIndex = next;
+}
+
+void WinCap::goNextShot()
+{
+    if (shotIndex < 0) return;   // 已经在"这次截图"上了，没有更前的可翻
+    saveShotToHistory();
+    const int next = shotIndex - 1;
+    if (next < 0) {
+        // 最新那条再往前一步 = 回到这次截图本身（含"还没框"那个状态）
+        restoreLiveShot();
+        return;
+    }
+    if ((size_t)next >= shotFiles.size()) return;
+    if (!applyShot(shotFiles[next])) return;
+    shotIndex = next;
+}
+
+bool WinCap::restoreLiveShot()
+{
+    if (screenRaw.empty() || w <= 0 || h <= 0) return false;
+    auto ctx = Ling::D2D::get()->deviceContext.Get();
+    D2D1_BITMAP_PROPERTIES1 props{
+        .pixelFormat{ D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE) },
+        .dpiX{ 96.0f }, .dpiY{ 96.0f }, .bitmapOptions{ D2D1_BITMAP_OPTIONS_NONE }
+    };
+    ComPtr<ID2D1Bitmap1> bmp;
+    // 直接从 F1 留下的整屏原始像素重建，不用再抓一次屏（那样画面早变了）
+    if (FAILED(ctx->CreateBitmap(D2D1::SizeU((UINT)w, (UINT)h),
+        screenRaw.data(), (UINT)w * 4, props, bmp.GetAddressOf()))) return false;
+
+    screenImg = bmp;
+    hideScreenImg = false;
+
+    // 翻出去看那张上的标注不跟着回来（历史文件里也没存标注）
+    if (history) history->shapes.clear();
+    shapeHover = nullptr;
+    newShape = nullptr;
+    // "这次截图"在历史里的代表就是最新那条（goPrevShot 离开时记下的）。接着用它，
+    // 来回翻几次也不会多出重复条目。Select 阶段存不了这条（没选区），所以是空
+    curShotPath = (liveStage == CapStage::Adjust && !shotFiles.empty())
+        ? shotFiles[0] : std::wstring{};
+
+    stage = liveStage;
+    cutMask->hideLabel = false;
+    if (liveStage == CapStage::Select) {
+        // 还原成"还没框"的样子：没有选区、没有工具条，光标回十字。
+        // 工具条藏起来而不是销毁 —— 下一次框完（onUp）会再 makeTools，那个函数
+        // 现在无论是否新建都会 show()，所以藏过也能回来
+        cutMask->maskRect = D2D1::RectF();
+        if (toolSub) toolSub->hideTools();
+        if (toolMain) toolMain->hide();
+    }
+    else {
+        cutMask->maskRect = liveMaskRect;
+        makeTools();       // 里面会 show + 摆位置
+        raiseToolbars();
+    }
+    shotIndex = -1;
+    setCursor();
+    refresh();
     return true;
 }

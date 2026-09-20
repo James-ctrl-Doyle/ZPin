@@ -3,6 +3,7 @@
 #include "../Lang.h"
 #include "../Tip.h"
 #include "ToolLong.h"
+#include "ToolHost.h"
 
 ToolLong::ToolLong(WinCap* win) : Ling::WinBase(), win(win)
 {
@@ -55,6 +56,10 @@ void ToolLong::onCreated()
 		tip->bind(btn, Lang::get(std::format(L"tool.{}", btnIds[i])));
 	}
 	show();
+	// 建好就顶到 topmost 带最上面（连同悬停提示）：全屏宿主被激活一次就会把
+	// 同样是 topmost 的工具条整个盖住，见 WinCap::raiseToolbars 的注释
+	ToolHost::raiseTopmost(hwnd);
+	if (tip) ToolHost::raiseTopmost(tip->hwnd());
 }
 
 void ToolLong::onClick(Ling::Button* btn)

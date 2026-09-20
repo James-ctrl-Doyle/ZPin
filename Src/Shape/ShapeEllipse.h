@@ -4,7 +4,7 @@
 class ShapeEllipse : public ShapeBase
 {
 public:
-	ShapeEllipse(WinPin* win);
+	ShapeEllipse(ToolHost* win);
 	~ShapeEllipse();
 	void paint(ID2D1DeviceContext* ctx) override;
 	void paintDragger(ID2D1DeviceContext* ctx) override;

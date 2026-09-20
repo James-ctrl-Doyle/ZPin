@@ -1,12 +1,12 @@
 ﻿#include "pch.h"
-#include "Win/WinPin.h"
+#include "Tool/ToolHost.h"
 #include "Tool/ToolMain.h"
 #include "Tool/ToolSub.h"
 #include "ShapeArrow.h"
 
 using Microsoft::WRL::ComPtr;
 
-ShapeArrow::ShapeArrow(WinPin* win) :ShapeBase(win), draggers{
+ShapeArrow::ShapeArrow(ToolHost* win) :ShapeBase(win), draggers{
 	D2D1::RectF(0,0,0,0),
 	D2D1::RectF(0,0,0,0) }
 {

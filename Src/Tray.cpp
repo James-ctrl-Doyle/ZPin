@@ -3,6 +3,7 @@
 #include "App.h"
 #include "Lang.h"
 #include "Win/WinCap.h"
+#include "Win/WinPin.h"
 #include "Win/WinSetting.h"
 #include "Setting.h"
 
@@ -10,6 +11,7 @@ namespace {
 	static std::unique_ptr<Tray> trayIns;
 	static constexpr UINT settingMsg = 163;
 	static constexpr UINT exitMsg = 164;
+	// 贴图已按用户要求从托盘菜单去掉（F3 热键和 WinPin::doPin 都还在，只是菜单里不再列）
 }
 
 Tray::Tray()

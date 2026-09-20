@@ -7,11 +7,10 @@
 #include "../App.h"
 #include "../Setting.h"
 #include "../Lang.h"
-// VideoMp4.hpp / VideoGif.hpp 里用的是裸 ComPtr，本项目的 pch 没有这条 using，
-// 在包含它们之前补上，头文件本身保持原样。
+// VideoMp4.hpp 里用的是裸 ComPtr，本项目的 pch 没有这条 using，
+// 在包含它之前补上，头文件本身保持原样。
 using namespace Microsoft::WRL;
 #include "VideoMp4.hpp"
-#include "VideoGif.hpp"
 
 namespace {
     // MP4 录制失败以前是静默 return，用户那边就是"录完什么都没有"，连缓存文件都不生成。
@@ -83,12 +82,21 @@ CapVideo::~CapVideo()
 {
 }
 
+HWND CapVideo::toolHwnd() const
+{
+    return tool ? tool->hwnd : nullptr;
+}
+
 void CapVideo::makeTool()
 {
     tool = std::make_unique<ToolVideo>(win);
     // 尺寸在 ToolVideo 构造里算好了，这里只定位；两者都要在建窗口之前设好
     layoutTool();
     tool->createNativeWindow(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, WS_POPUP);
+    // 建完立刻顶到 topmost 带最上面：别指望"后建的窗口自然在上面" ——
+    // 这一步之前 enterLiveStage 把全屏宿主提到过这一带的最上面，
+    // 只要中间有任何一次激活落到宿主身上，刚建好的工具条就会被它盖住
+    ToolHost::raiseTopmost(tool->hwnd);
     // 全屏录制时工具条只能压在录制区内部（选区外面上下都放不下），不摘出去就会被录进去
     App::excludeFromCapture(tool->hwnd);
 }
@@ -106,13 +114,15 @@ void CapVideo::dispose()
 
 bool CapVideo::isRecording() const
 {
-    return mp4Param || gifParam;
+    return mp4Param != nullptr;
 }
 
 void CapVideo::startMp4(bool useSpeaker, bool useMic)
 {
     auto& cutMask = win->cutMask;
-    auto videoTempPath = Setting::get()->getDataPath();
+    // 录屏先落成数据目录 temp 子目录下的临时文件（和截图缓存同一个地方），
+    // 存文件/丢弃时再删。名字固定：一次只可能录一个，留着的也会被下次录屏覆盖
+    auto videoTempPath = Setting::get()->getDataPath() / L"temp";
     mp4Param = std::make_unique<VideoMp4::DESKTOPCAPTUREPARAMS>();
     // 编码格式不在这里定，交给下面采集线程里那个"HEVC 不行就退 H.264"的循环
     // 录制区域先夹回桌面范围，再做对齐 —— 只会往里缩，不会越出桌面。
@@ -131,7 +141,7 @@ void CapVideo::startMp4(bool useSpeaker, bool useMic)
     const long rcW = std::max(4l, (rcRight - rcLeft) & ~3l);
     const long rcH = std::max(2l, (rcBottom - rcTop) & ~1l);
     mp4Param->rx = { rcLeft, rcTop, rcLeft + rcW, rcTop + rcH };
-    mp4Param->f = videoTempPath.append(L"temp.mp4").wstring();
+    mp4Param->f = (videoTempPath / L"capture.mp4").wstring();
     mp4Param->EndMS = 0;
     mp4Param->fps = 30;
     mp4Param->vbrm = 2;
@@ -190,21 +200,6 @@ void CapVideo::startMp4(bool useSpeaker, bool useMic)
 
 }
 
-void CapVideo::startGif()
-{
-    auto& cutMask = win->cutMask;
-    auto videoTempPath = Setting::get()->getDataPath();
-    gifParam = std::make_unique<VideoGif::GifParam>();
-    gifParam->x = (int)(win->x + cutMask->maskRect.left);
-    gifParam->y = (int)(win->y + cutMask->maskRect.top);
-    gifParam->w = (int)(cutMask->maskRect.right - cutMask->maskRect.left);
-    gifParam->h = (int)(cutMask->maskRect.bottom - cutMask->maskRect.top);
-    gifParam->path = videoTempPath.append(L"temp.gif").wstring();
-    captureThread = std::jthread([this](std::stop_token st) {
-        VideoGif::createGif(gifParam.get());
-    });
-}
-
 bool CapVideo::onSaveKey(bool toClipboard)
 {
     return tool ? tool->onSaveKey(toClipboard) : false;
@@ -212,18 +207,12 @@ bool CapVideo::onSaveKey(bool toClipboard)
 
 std::wstring CapVideo::stop()
 {
-    if (!mp4Param && !gifParam) return L"";
+    if (!mp4Param) return L"";
     // 遮罩也别留在屏幕上，录完这一帧就该收工了
     win->hide();
     std::wstring filePath;
-    if (mp4Param) {
-        mp4Param->MustEnd = true;
-        filePath = mp4Param->f;
-    }
-    if (gifParam) {
-        gifParam->isFinish = true;
-        filePath = gifParam->path;
-    }
+    mp4Param->MustEnd = true;
+    filePath = mp4Param->f;
     if (captureThread.joinable()) {
         captureThread.join();
     }
@@ -236,6 +225,5 @@ std::wstring CapVideo::stop()
     }
     // 参数置空即"已停止"，stopIfRecording / dispose 再进来时不会重复 join
     mp4Param.reset();
-    gifParam.reset();
     return filePath;
 }

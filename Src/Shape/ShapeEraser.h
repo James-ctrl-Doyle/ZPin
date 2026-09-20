@@ -4,7 +4,7 @@
 class ShapeEraser : public ShapeBase
 {
 public:
-	ShapeEraser(WinPin* win);
+	ShapeEraser(ToolHost* win);
 	~ShapeEraser();
 	void paint(ID2D1DeviceContext* ctx) override;
 	void paintDragger(ID2D1DeviceContext* ctx) override;

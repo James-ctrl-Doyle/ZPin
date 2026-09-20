@@ -1,0 +1,22 @@
+# 换行符策略：仓库里一律存 LF，检出也保持 LF。
+#
+# 上游 xland/ScreenCapture 提交的就是 LF。本机 git 的 core.autocrlf=true 会在检出时把工作区
+# 改成 CRLF，于是 git add 时刷一屏 "LF will be replaced by CRLF"，各人机器上还会来回改写、
+# 产生无意义的 diff。这里显式定死，谁 clone 都一样。
+* text=auto eol=lf
+
+# 二进制文件：不参与任何换行/文本转换
+*.ttf   binary
+*.otf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.lib   binary
+*.exe   binary
+*.dll   binary
+*.pdb   binary
+*.bin   binary
+*.obj   binary
+*.ilk   binary

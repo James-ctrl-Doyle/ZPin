@@ -12,7 +12,7 @@
 class ShapeText : public ShapeBase
 {
 public:
-	ShapeText(WinPin* win);
+	ShapeText(ToolHost* win);
 	~ShapeText();
 	void paint(ID2D1DeviceContext* ctx) override;
 	void paintDragger(ID2D1DeviceContext* ctx) override;

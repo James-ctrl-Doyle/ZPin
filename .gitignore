@@ -1,9 +1,53 @@
+# ---- 编译产物 ----
+# exe / 中间产物 / 日志：ext/build 是构建脚本指定的输出目录，整个都不进仓库
+/ext/build/
+**/x64/
+**/Release/
+**/Debug/
+*Temp/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.tlog
+*.log
+*.iobj
+*.ipdb
+*.lastbuildstate
+.vs/
 **/.vs/**
 *.TMP
-*.log
-/enc_temp_folder/
+enc_temp_folder/
+
+# Visual Studio 的每用户文件（.vcxproj.user 存的是本机的调试/启动设置，别人用不上）
+*.vcxproj.user
+*.sln.docstates
+Src/Res/Resource.aps
 Res.aps
-/x64/
-/ScreenCapture/x64/
-/ScreenCapture/ScreenCapture/x64/
-**/x64/**
+
+# 本机生成的构建工程（里面有本机绝对路径，用 _tools/make_build_project.py 现场生成）
+Src/ScreenCapture.build.vcxproj
+
+# ---- 运行时数据 ----
+# 程序把 config.json / temp 放在 exe 同目录；exe 在 ext/build 下（上面已排除），
+# 但手工把 exe 拷到别处跑的时候这里再兜一道
+config.json
+/temp/
+
+# ---- 本地专用目录（不进仓库）----
+# _attic 是过期脚本的存放处；_backup_* 是改代码前留的备份；_removed_gif 是删 GIF 时留的档；
+# _backup_ling_git 是 Ling 内置之前挪出来的上游 .git（想对比上游时用得上）
+/_attic/
+/_backup_src/
+/_backup_lang/
+/_backup_ling_git/
+/_removed_gif/
+
+# ---- 开发工具的本地环境 ----
+# Pillow 等测试依赖装在 _tools/.pylibs 里，是本地环境不是源码
+_tools/.pylibs/
+_tools/bench/
+__pycache__/
+*.pyc
+_tools/iconfont_glyphs.png

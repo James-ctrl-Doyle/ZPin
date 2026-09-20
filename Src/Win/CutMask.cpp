@@ -2,12 +2,14 @@
 #include <dwmapi.h>
 #include <include/Ling.h>
 #include "CutMask.h"
+#include "../Setting.h"
 #include "../Util.h"
 using namespace Microsoft::WRL;
 
 CutMask::CutMask(Ling::WinBase* win) :win{ win }
 {
-	strokeWidth = 2 * win->dpi;
+	// 边框粗细可配（设置里调，0 = 完全不画边框），默认 2 与旧版写死的值一致
+	strokeWidth = Setting::get()->getBorderWidth() * win->dpi;
 	paddingTop *= win->dpi;
 	paddingMargin *= win->dpi;
 	auto d2d = Ling::D2D::get();
@@ -195,8 +197,11 @@ void CutMask::paint(ID2D1DeviceContext* ctx)
 	ctx->FillRectangle(D2D1::RectF(0.f, maskRect.bottom, win->w, win->h), brushBg.Get());
 	ctx->FillRectangle(D2D1::RectF(0.f, maskRect.top, maskRect.left, maskRect.bottom), brushBg.Get());
 	ctx->FillRectangle(D2D1::RectF(maskRect.right, maskRect.top, win->w, maskRect.bottom), brushBg.Get());
-	auto halfStrokeWidth{ strokeWidth / 2.f };
-	ctx->DrawRectangle(D2D1::RectF(maskRect.left - halfStrokeWidth, maskRect.top - halfStrokeWidth, maskRect.right + halfStrokeWidth, maskRect.bottom + halfStrokeWidth), brushBorder.Get(), strokeWidth);
+	// 粗细为 0 就是不画边框（纯截图，不要那圈蓝线）
+	if (strokeWidth > 0) {
+		auto halfStrokeWidth{ strokeWidth / 2.f };
+		ctx->DrawRectangle(D2D1::RectF(maskRect.left - halfStrokeWidth, maskRect.top - halfStrokeWidth, maskRect.right + halfStrokeWidth, maskRect.bottom + halfStrokeWidth), brushBorder.Get(), strokeWidth);
+	}
 	if (hideLabel) return;
 	ctx->FillRectangle(layoutRect, brushBg.Get());
 	ctx->DrawTextLayout({ layoutRect.left+ paddingMargin, layoutRect.top+ paddingMargin }, layout.Get(), brushText.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);

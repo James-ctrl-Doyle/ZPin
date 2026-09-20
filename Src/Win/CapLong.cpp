@@ -49,23 +49,52 @@ namespace {
     // 用平均误差而非累积误差，避免比较行数不同时 y=0 占便宜：
     // 累积 SSD 在 y=0 比较 100 行、y=15 比较 85 行，前者"容错空间"大，
     // 当滚动量小且内容有平滑区域时，y=0 的总误差反而更低，导致误判为"没滚动"。
-    int findMostSimilarY(const BYTE* gray1, int gray1H, const BYTE* gray2, int gray2H, int width)
+    //
+    // 性能：先隔行粗扫一遍取个接近最优的误差当"剪枝种子"，再全程细扫 ——
+    // 细扫时每算完一行就跟阈值比一次，超了就放弃这个候选。窗口 2560 宽、700 个候选、
+    // 100 行条带时，原来每步固定要跑约 1.8 亿次像素运算（实测 91ms，长图卡顿的主要来源）。
+    // 结果与完整遍历**完全一致**：被剪掉的候选误差必然 > 阈值 ≥ 真正的最小值，
+    // 而"谁是最优"仍然按原逻辑（严格小于、并列取最小的 y）判定，种子只参与剪枝不参与判定。
+    int findMostSimilarY(const BYTE* gray1, int gray1H, const BYTE* gray2, int gray2H, int width, int hint)
     {
         int searchH = gray1H - gray2H + 1;
         if (searchH <= 0) return 0;
-        double minAvgError = DBL_MAX;
-        int bestY = 0;
-        for (int y = 0; y < searchH; y++) {
+
+        // 算 y 处的平均误差；pruneLimit > 0 时，累计误差一旦超过它就直接放弃这个候选。
+        // 被剪掉的候选返回 DBL_MAX
+        auto evalAt = [&](int y, double pruneLimit) -> double {
             double error = 0.0;
-            for (int row = 0; row < gray2H; row++) {
-                const BYTE* row1 = gray1 + (y + row) * width;
-                const BYTE* row2 = gray2 + row * width;
+            const BYTE* row1 = gray1 + (size_t)y * width;
+            for (int row = 0; row < gray2H; row++, row1 += width) {
+                const BYTE* row2 = gray2 + (size_t)row * width;
                 for (int x = 0; x < width; x++) {
                     int diff = (int)row1[x] - (int)row2[x];
                     error += diff * diff;
                 }
+                if (pruneLimit > 0 && error > pruneLimit) return DBL_MAX;
             }
-            double avgError = error / gray2H;
+            return error / gray2H;
+        };
+
+        // 种子：让剪枝一开始就有个像样的阈值。取 0（"没滚动"）和上一次的滚动量附近 ——
+        // 连续两次滚动的幅度通常很接近，拿它当种子，绝大多数候选一行都撑不过。
+        // 关键：种子必须是**某个真实候选的完整误差**，这样它必然 ≥ 真正的最小值，
+        // 才能保证不会把最优解误剪掉。用抽样/近似值当种子是不安全的
+        double seed = DBL_MAX;
+        const int guesses[] = { 0, hint, hint > 0 ? hint * 2 : -1 };
+        for (int g : guesses) {
+            if (g < 0 || g >= searchH) continue;
+            double e = evalAt(g, 0.0);
+            if (e < seed) seed = e;
+        }
+
+        double minAvgError = DBL_MAX;
+        int bestY = 0;
+        for (int y = 0; y < searchH; y++) {
+            // 阈值取"种子"和"已确认最优"里更小的那个；"谁最优"仍按原逻辑判定（严格小于、
+            // 并列取最小的 y），种子只参与剪枝 —— 所以结果与完整遍历完全一致
+            const double ref = minAvgError < seed ? minAvgError : seed;
+            double avgError = evalAt(y, ref * gray2H);
             if (avgError < minAvgError) {
                 minAvgError = avgError;
                 bestY = y;
@@ -87,21 +116,40 @@ namespace {
     // 返回滚动量 s；0 表示没对上（比如整条都是新内容，或条带太"平"匹配不可信）。
     int findScrollByBottomStrip(const BYTE* grayOld, const BYTE* grayNew, int width, int stripH)
     {
-        double minAvgError = DBL_MAX;
-        double avgAtZero = DBL_MAX;
-        int bestS = 0;
-        for (int s = 0; s < stripH; s++) {
-            int rows = stripH - s; // 条带里还能和旧帧对上的行数
+        // 算 s 处的平均误差；被剪枝返回 false（同 findMostSimilarY 的做法）。
+        // 注意 s=0 永远不剪：它要用来当"完全没对上"的基准值 avgAtZero
+        auto evalAt = [&](int s, double pruneLimit, double& outError) -> bool {
+            const int rows = stripH - s;
             double error = 0.0;
+            const BYTE* row1base = grayOld + (size_t)s * width;
             for (int r = 0; r < rows; r++) {
-                const BYTE* row1 = grayOld + (size_t)(s + r) * width;
+                const BYTE* row1 = row1base + (size_t)r * width;
                 const BYTE* row2 = grayNew + (size_t)r * width;
                 for (int x = 0; x < width; x++) {
                     int diff = (int)row1[x] - (int)row2[x];
                     error += diff * diff;
                 }
+                if (pruneLimit > 0 && error > pruneLimit) return false;
             }
-            double avgError = error / rows;
+            outError = error / rows;
+            return true;
+        };
+
+        constexpr int coarseStep = 8;
+        double seed = DBL_MAX;
+        for (int s = coarseStep; s < stripH; s += coarseStep) {
+            double e{};
+            if (evalAt(s, 0.0, e) && e < seed) seed = e;
+        }
+
+        double minAvgError = DBL_MAX;
+        double avgAtZero = DBL_MAX;
+        int bestS = 0;
+        for (int s = 0; s < stripH; s++) {
+            const int rows = stripH - s;
+            const double ref = minAvgError < seed ? minAvgError : seed;
+            double avgError{};
+            if (!evalAt(s, s == 0 ? 0.0 : ref * rows, avgError)) continue;
             if (s == 0) avgAtZero = avgError;
             if (avgError < minAvgError) {
                 minAvgError = avgError;
@@ -217,9 +265,13 @@ void CapLong::onTimerCB(UINT timerId)
         INPUT input = { 0 };
         input.type = INPUT_MOUSE;
         input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-        input.mi.mouseData = -WHEEL_DELTA;
+        // 一次发多格：内容一屏一屏地走，而不是一格一格挪。
+        // 实际滚了多少由 capStep 的像素匹配算出来，这里只是"请求量"——
+        // 某个程序对一格的定义不同也只影响效率，不会拼错
+        input.mi.mouseData = -WHEEL_DELTA * scrollNotches;
         SendInput(1, &input, sizeof(INPUT));
-        win->setTimer(scrollSettleMs, scrollEndMsgId); //滚动开始
+        // 滚得越多、动画越长，等的时间跟着放长一点再抓，免得抓到动画中间帧
+        win->setTimer(scrollSettleMs + scrollNotches * 25, scrollEndMsgId); //滚动开始
     }
     else if (scrollEndMsgId == timerId) {
         win->killTimer(scrollEndMsgId); //滚动完成
@@ -236,6 +288,16 @@ void CapLong::firstStep()
     capStartPos.x = (int)maskRect.left;
     capStartPos.y = (int)maskRect.top;
     ClientToScreen(win->hwnd, &capStartPos);
+    lastScroll = -1; // 新的一次长图，滚动量还没测过
+    // 每步滚多少：目标是"滚掉一屏的大部分"，但必须留下足够的重叠给匹配用 ——
+    // 拼接位置是靠新旧两帧的重叠条带反推的，重叠不足就匹配不出来（会退化成"滚不动"）。
+    // 这里保证至少留 max(150px, 选区高的 30%) 的重叠：
+    //   714px 高的选区 → 留 214px 重叠，每步约 500px（原来一格一格挪只有 100px，要滚 33 次）
+    //   小选区（比如 300px）→ 至少留 150px，也就是每步 150px，仍是一格
+    // 一格按 100px 估算；实际滚了多少由像素匹配算出来，估错只影响效率，不影响正确性
+    const int overlap = std::max(150, imgH * 30 / 100);
+    targetNotches = std::clamp((imgH - overlap) / 100, 1, 10);
+    scrollNotches = targetNotches;
     imgData = Util::captureScreen(capStartPos.x, capStartPos.y, imgW, imgH);
     img1 = imgData;
     makeImgPreview();
@@ -305,7 +367,7 @@ void CapLong::capStep()
     int img1StripH = imgH - changeStartY;
     auto gray1 = toGrayscale(img1.data() + changeStartY * rowPix, imgW, img1StripH, rowPix);
     auto gray2 = toGrayscale(data.data() + changeStartY * rowPix, imgW, stripH, rowPix);
-    int y = findMostSimilarY(gray1.data(), img1StripH, gray2.data(), stripH, imgW);
+    int y = findMostSimilarY(gray1.data(), img1StripH, gray2.data(), stripH, imgW, lastScroll);
     if (y == 0) {
         // 顶部条带没对上：可能滚动区域顶部是纯色/空白（比如页面底部的留白），
         // 换用新帧底部的条带再反推一次滚动量
@@ -315,11 +377,20 @@ void CapLong::capStep()
     }
     if (y == 0) { // 未检测到滚动
         if (framesDiffer(data, img1)) {
-            // 帧在变但匹配不出滚动量：多半是滚动动画还没停、或页面还在加载。
-            // 这时不急着判"滚不动"，隔一会儿重抓一帧等它停稳，最多等几次再放弃
+            // 帧在变但匹配不出滚动量，有两种可能：
+            //   1) 滚动动画还没停 / 页面还在加载 —— 隔一会儿重抓一帧等它停稳；
+            //   2) 这一步滚得太多，两帧已经完全重叠不上了 —— 把步长减半重来。
+            // 这里绝不能直接判"到底了"：那会让长图提前收工，只截到半截
             if (settleRecheckCount < maxSettleRecheck) {
                 settleRecheckCount++;
                 win->setTimer(settleRecheckMs, scrollEndMsgId);
+                return;
+            }
+            if (scrollNotches > 1) {
+                scrollNotches = std::max(1, scrollNotches / 2);
+                settleRecheckCount = 0;
+                dismissTime = 0;
+                win->setTimer(scrollSettleMs, scrollMsgId); // 用更小的步长再来一次
                 return;
             }
         }
@@ -331,24 +402,35 @@ void CapLong::capStep()
     }
     dismissTime = 0;
     settleRecheckCount = 0;
+    // 匹配成功：步长若之前被砍过，慢慢调回目标值（只涨一格，避免又在边缘反复试探）
+    if (scrollNotches < targetNotches) scrollNotches++;
+    // 记下这一笔的实际滚动量，给下一步当剪枝种子（见 findMostSimilarY 的注释）
+    lastScroll = y;
     // 计算拼接位置
     int paintStart = resultH - (imgH - y - changeStartY);
     int newResultH = paintStart + (imgH - changeStartY);
-    // 创建新的结果图像
-    std::vector<BYTE> newResult((size_t)rowPix * newResultH);
-    // 拷贝旧结果
-    CopyMemory(newResult.data(), imgData.data(), imgData.size());
-    // 拷贝新截图从 changeStartY 到底部的内容
-    for (int row = 0; row < imgH - changeStartY; row++) {
-        CopyMemory(newResult.data() + (size_t)(paintStart + row) * rowPix, data.data() + (size_t)(changeStartY + row) * rowPix, rowPix);
+    // 直接在 imgData 上扩容，只写新滚进来的那一段。
+    // 原来是每步新建一个 newResultH 大小的缓冲、把已有内容整体拷过去 ——
+    // 长图滚到后面时每步要分配并拷贝几十上百 MB（36000 行上限时是 368MB），
+    // 而 resize 只把新增的那一段补上，写入范围恰好完全覆盖它
+    imgData.resize((size_t)rowPix * newResultH);
+    const int stripRows = imgH - changeStartY;
+    for (int row = 0; row < stripRows; row++) {
+        CopyMemory(imgData.data() + (size_t)(paintStart + row) * rowPix,
+            data.data() + (size_t)(changeStartY + row) * rowPix, rowPix);
     }
-    imgData = std::move(newResult);
-    img1 = data;
+    // data 到这里已经用完（下面不再引用），直接搬给 img1 当"上一帧"，省一次整帧拷贝
+    img1 = std::move(data);
     resultH = newResultH;
     if (resultH > 36000) { stopCap(); return; }
     makeImgPreview();
     win->refresh();
     win->setTimer(500, scrollMsgId); //准备下次滚动
+}
+
+HWND CapLong::toolHwnd() const
+{
+    return tool ? tool->hwnd : nullptr;
 }
 
 void CapLong::makeTool()
@@ -357,6 +439,9 @@ void CapLong::makeTool()
     // 尺寸在 ToolLong 构造里算好了，这里只定位；两者都要在建窗口之前设好
     layoutTool();
     tool->createNativeWindow(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, WS_POPUP);
+    // 同 CapVideo：建完立刻顶到 topmost 带最上面，别指望"后建的窗口自然在上面"，
+    // 全屏宿主被激活一次就会把它盖住（表现：工具条上的按钮全没了）
+    ToolHost::raiseTopmost(tool->hwnd);
 }
 
 void CapLong::layoutTool()
@@ -434,7 +519,8 @@ void CapLong::copyToClipboard()
 bool CapLong::saveToFile()
 {
     if (imgData.empty()) return false;
-    auto path = Util::getSaveFilePath(win->hwnd);
+    // 保存位置 / 快速保存统一走 Util：勾了快速保存就直接落盘，否则弹另存为
+    auto path = Util::resolveSavePath(L"png", win->hwnd);
     if (path.empty()) return false;
     return Util::saveToFile(path, imgW, resultH, imgData.data());
 }

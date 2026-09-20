@@ -1,12 +1,12 @@
 #pragma once
 #include <include/Ling.h>
 
-class WinPin;
+class ToolHost;
 class Tip;
 class ToolSub:public Ling::WinBase
 {
 public:
-	ToolSub(WinPin* win);
+	ToolSub(ToolHost* win);
 	~ToolSub();
 	void showRectTools();
 	void showEllipseTools();
@@ -80,7 +80,7 @@ private:
 	static constexpr float borderW{ 1.f };
 	// 箭头尖端相对窗口左边的偏移，由 updatePosition 按屏幕坐标算出，是物理像素
 	float arrowX{0.f};
-	WinPin* win;
+	ToolHost* win;
 	// 背景/边框画刷缓存：layout() 每次刷新都会调 paintBorder，别在里面重复建
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushBg, brushBorder;
 	// 铺满窗口的画布，画的是背景与带箭头的边框，按钮都在 contentNode 上，盖在它上面

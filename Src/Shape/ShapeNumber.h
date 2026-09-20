@@ -4,7 +4,7 @@
 class ShapeNumber : public ShapeBase
 {
 public:
-	ShapeNumber(WinPin* win);
+	ShapeNumber(ToolHost* win);
 	~ShapeNumber();
 	void paint(ID2D1DeviceContext* ctx) override;
 	void paintDragger(ID2D1DeviceContext* ctx) override;
@@ -18,7 +18,7 @@ public:
 	bool isValidWithoutDrag() override { return true; };
 public:
 private:
-	static int getNextVal(WinPin* win);
+	static int getNextVal(ToolHost* win);
 	D2D1_POINT_2F localPoint(const float degrees);
 	D2D1_POINT_2F transformPoint(const D2D1_POINT_2F& point);
 	void makePath();

@@ -1,11 +1,11 @@
 ﻿#pragma once
 #include <include/Ling.h>
 class ShapeBase;
-class WinPin;
+class ToolHost;
 class History
 {
 public:
-	History(WinPin* win);
+	History(ToolHost* win);
 	~History();
 	ShapeBase* createShape(const std::wstring& state, const int& x, const int& y);
 	void undo();
@@ -18,6 +18,6 @@ public:
 private:
 	void removeUndoShape();
 private:
-	WinPin* win;
+	ToolHost* win;
 };
 

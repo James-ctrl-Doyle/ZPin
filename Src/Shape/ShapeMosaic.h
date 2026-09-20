@@ -4,7 +4,7 @@
 class ShapeMosaic : public ShapeBase
 {
 public:
-	ShapeMosaic(WinPin* win);
+	ShapeMosaic(ToolHost* win);
 	~ShapeMosaic();
 	void paint(ID2D1DeviceContext* ctx) override;
 	void paintDragger(ID2D1DeviceContext* ctx) override;

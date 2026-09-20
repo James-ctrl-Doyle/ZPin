@@ -4,7 +4,7 @@
 class ShapeRect : public ShapeBase
 {
 public:
-	ShapeRect(WinPin* win);
+	ShapeRect(ToolHost* win);
 	~ShapeRect();
 	void paint(ID2D1DeviceContext* ctx) override;
 	void paintDragger(ID2D1DeviceContext* ctx) override;

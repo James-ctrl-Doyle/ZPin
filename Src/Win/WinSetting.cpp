@@ -158,5 +158,3 @@ LRESULT WinSetting::onHitTest(const POINT pos)
 	}
 	return HTCLIENT;
 }
-
-

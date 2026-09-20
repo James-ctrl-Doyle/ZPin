@@ -27,6 +27,9 @@ public:
 	// ToolLong 的摆放规则：摆在选区右侧（右边放不下就改到左侧），底边与选区底边齐。
 	// 建窗口时走一遍，工具条的 DPI 变了之后由它回头再走一遍
 	void layoutTool();
+	// 工具条的窗口句柄（还没建时为空）。宿主要靠它把工具条顶回 topmost 带最上面 ——
+	// 见 WinCap::raiseToolbars 的注释。ToolLong 只前向声明，实现放 .cpp 里
+	HWND toolHwnd() const;
 private:
 	void firstStep();
 	void makeImgPreview();
@@ -43,6 +46,13 @@ private:
 	// 抓到"帧在变但匹配不出滚动量"的帧时连续等待的次数，防止一直卡住
 	int settleRecheckCount{ 0 };
 	int changeStartY{ -1 };
+	// 上一次匹配出来的滚动量。连续两次滚动的幅度通常很接近，拿它当滚动匹配的剪枝种子
+	// （见 findMostSimilarY 的注释）。-1 = 还没成功匹配过
+	int lastScroll{ -1 };
+	// 每步发几格滚轮。一格在浏览器里约 100px，按选区高度定目标值（见 firstStep）：
+	// 发得越多越快，但两帧必须有足够重叠才能匹配出滚动量，所以只发选区高度的一部分。
+	// 匹配不出来时会自动减半重试（见 capStep），targetNotches 是"想恢复到多少"
+	int scrollNotches{ 1 }, targetNotches{ 1 };
 	D2D1_RECT_F stopTextRect{};
 	// 两处文字的绘制起点。IDWriteTextLayout 默认左上对齐，DrawTextLayout 给的又是
 	// layout 框的左上角，所以得先测出文本实际宽高，才能算出居中要的那个起点

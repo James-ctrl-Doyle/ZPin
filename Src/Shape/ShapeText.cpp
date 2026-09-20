@@ -2,14 +2,14 @@
 #include "App.h"
 #include "Util.h"
 #include "History.h"
-#include "Win/WinPin.h"
+#include "Tool/ToolHost.h"
 #include "Tool/ToolMain.h"
 #include "Tool/ToolSub.h"
 #include "ShapeText.h"
 
 using Microsoft::WRL::ComPtr;
 
-ShapeText::ShapeText(WinPin* win) :ShapeBase(win), borderPadding{ 6.f * win->dpi }
+ShapeText::ShapeText(ToolHost* win) :ShapeBase(win), borderPadding{ 6.f * win->dpi }
 {
 	setAttr();
 	// 虚线框：2 实 2 虚，与 2.4.25 一致
@@ -162,9 +162,24 @@ void ShapeText::startEdit()
 		// 框会随文本长大，虚线框跟着重画；rect 在 paint 里从 TextBox 的实际尺寸同步
 		win->refresh();
 	});
-	focusTok = tb->onFocusChanged.add([this](Ling::TextBox*, bool focused) {
-		// 点到别处、按 ESC、窗口失焦都会走到这儿
-		if (!focused) finishEdit();
+	focusTok = tb->onFocusChanged.add([this, tb](Ling::TextBox*, bool focused) {
+		if (!focused) {
+			// 焦点没了分两种，处理完全不同：
+			//   按 ESC / 点到控件外 —— 自己人内部的变化，编辑该收（finishEdit）；
+			//   前台被**别的程序**抢走 —— 编辑不能跟着陪葬，把焦点拿回来接着编
+			//   （打字不该因为一个弹窗、一次alt-tab就断掉）。
+			// 注意前台是**自己家的工具条**不算被抢（它们是 NOACTIVATE 的，但也可能持有焦点）。
+			// finishEdit 自己会先摘掉这个订阅再 blur，所以这里重新 focus 不会死循环。
+			// 窗口被隐藏/最小化时不要抢：那多半是程序自己要走保存/识别之类的流程
+			DWORD fgPid{ 0 };
+			GetWindowThreadProcessId(GetForegroundWindow(), &fgPid);
+			const bool stolen = fgPid != GetCurrentProcessId();
+			if (stolen && !IsIconic(win->hwnd) && IsWindowVisible(win->hwnd)) {
+				tb->focus();
+				return;
+			}
+			finishEdit();
+		}
 	});
 	win->setEditingText(this);
 	tb->focus();

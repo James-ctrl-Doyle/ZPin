@@ -1,0 +1,28 @@
+﻿#pragma once
+#include <Windows.h>
+
+#include "Align.h"
+#include "Wrap.h"
+#include "Edge.h"
+#include "Position.h"
+#include "Justify.h"
+#include "FlexDirection.h"
+#include "App.h"
+#include "Color.h"
+#include "D2D.h"
+#include "Node.h"
+#include "Label.h"
+#include "Image.h"
+#include "ImageBox.h"
+#include "ScrollerBox.h"
+#include "Button.h"
+#include "Slider.h"
+#include "Canvas.h"
+#include "TextBox.h"
+#include "Util.h"
+#include "WinBase.h"
+
+namespace Ling {
+	bool init();
+	void dispose();
+}

@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "History.h"
-#include "Win/WinPin.h"
+#include "Tool/ToolHost.h"
 #include "Tool/ToolMain.h"
 #include "Tool/ToolSub.h"
 #include "Shape/ShapeBase.h"
@@ -13,7 +13,7 @@
 #include "Shape/ShapeMosaic.h"
 #include "Shape/ShapeEraser.h"
 
-History::History(WinPin* win):win{win}
+History::History(ToolHost* win):win{win}
 {
 
 }
@@ -120,13 +120,18 @@ void History::removeHoverShape()
 
 void History::removeShape(ShapeBase* target)
 {
+    // erase / refresh / return 必须都在 if 里面！之前它们写在了 if 外面，
+    // 于是"删任意一个 shape"实际删掉的是 shapes[0]（第一个图形）——
+    // 空文本收尾（ShapeText::finishEdit）、新建元素没画出来被丢弃（ToolHost::endShape）
+    // 都会走到这里，表现就是"莫名其妙少了一个图形"。
     for (auto it = shapes.begin(); it != shapes.end(); ++it) {
         if (it->get() == target) {
-			win->shapeHover = nullptr; 
+            // 悬停指针可能正指着它，删之前先摘掉，别留悬空
+            if (win->shapeHover == target) win->shapeHover = nullptr;
+            shapes.erase(it);
+            win->refresh();
+            return;
         }
-        shapes.erase(it);
-        win->refresh();
-        return;
     }
 }
 
