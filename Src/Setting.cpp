@@ -131,13 +131,16 @@ void Setting::setShortcutKey(const std::wstring& type, const std::vector<std::ws
     // 先注销旧的再注册新的。注册同一个 id 的新组合本来就会把旧的顶掉，这一步是为了
     // "清除"那条路 —— 空串不能拿去注册。注册成不成功这里不看：只有热键真被按下才知道，
     // 组合被别的程序占着的时候 regHotKey 会失败，让用户自己去设置页试
-    auto msgId = shortcutMsgId(type);
-    if (msgId) {
-        auto app = Ling::App::get();
-        app->unRegHotKey(msgId);
-        if (!str.empty()) app->regHotKey(str, msgId);
-    }
-    save();
+      auto msgId = shortcutMsgId(type);
+      if (msgId) {
+          auto app = Ling::App::get();
+          app->unRegHotKey(msgId);
+          // "关闭所有快捷键"开着的时候不注册回去：托盘里关了热键打游戏，
+          // 不能因为用户顺手在设置页改了下键就又抢回系统全局键。
+          // 关闭禁用时 setDisableHotkeys 会按表把所有热键统一注册回来
+          if (!str.empty() && !getDisableHotkeys()) app->regHotKey(str, msgId);
+      }
+      save();
 }
 
 std::wstring Setting::getShortcutKey(const std::wstring& type)
@@ -264,6 +267,40 @@ bool Setting::getAutoStart()
 {
     auto common = configObj.GetNamedObject(L"common", nullptr);
     return common && common.GetNamedBoolean(L"autoStart", false);
+}
+
+bool Setting::getDisableHotkeys()
+{
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    return common && common.GetNamedBoolean(L"disableHotkeys", false);
+}
+
+void Setting::setDisableHotkeys(bool disable)
+{
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    if (!common) {
+        common = JsonObject();
+        configObj.SetNamedValue(L"common", common);
+    }
+    common.SetNamedValue(L"disableHotkeys", JsonValue::CreateBooleanValue(disable));
+    save();
+    // 立即生效：禁用 = 注销所有全局热键；恢复 = 按表重新注册一遍。
+    // 窗口内按键（翻截图历史的 , / .）不在这里管 —— 它们本来就不是全局热键，
+    // 只在截图窗口里生效，打游戏时窗口不开着就碰不到
+    auto app = Ling::App::get();
+    for (const auto& def : shortcutTable) {
+        if (def.windowOnly) continue;
+        auto str = effectiveShortcutKey(def.type);
+        if (str.empty()) continue;
+        if (disable) {
+            app->unRegHotKey(def.msgId);
+        }
+        else {
+            // 注册不上（组合被别的程序占着）与 initShortcutKeys 同一态度：不拦着，
+            // 用户去设置页换个组合就是了
+            app->regHotKey(str, def.msgId);
+        }
+    }
 }
 
 std::filesystem::path Setting::getTempPath()
@@ -504,12 +541,16 @@ void Setting::resumeShortcuts()
 void Setting::initShortcutKeys()
 {
     auto lingApp = Ling::App::get();
+    // "关闭所有快捷键"开着（上次退出前勾了游戏模式）就一个都不注册。
+    // onHotKey 回调照样挂：热键没注册就不会有 WM_HOTKEY 进来，挂回调无副作用
+    const bool disabled = getDisableHotkeys();
     // 逐项注册。空串 = 这一项没有热键（默认就没给，或者用户自己清掉了），跳过就行 ——
     // 功能本身还在，只是不能从键盘直接唤起来
     for (const auto& def : shortcutTable) {
         if (def.windowOnly) continue; // 截图窗口内的按键，不走系统热键
         auto str = effectiveShortcutKey(def.type);
         if (str.empty()) continue;
+        if (disabled) continue;
         // 注册不上（组合被别的程序占着）也不管：顶多是这个热键不好用，
         // 不该让程序起不来，用户在设置页里换一个就是了
         lingApp->regHotKey(str, def.msgId);

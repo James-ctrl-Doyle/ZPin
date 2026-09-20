@@ -17,6 +17,7 @@
 - Small size, a single executable file, no installation required, does not depend on any dynamic link libraries.
 - Supports a variety of command-line arguments for launching a specified function directly.
 - Supports one-time execution mode (the process will not remain resident in the system).
+- Tray menu toggle to disable all global hotkeys at once (game mode, no more accidental F1); the state survives restarts.
 - Multi-language support.
 
 ## Download

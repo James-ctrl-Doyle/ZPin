@@ -58,6 +58,10 @@ public:
 	UINT effectiveShortcutVk(const std::wstring& type);
 	void setAutoStart(bool autoStart);
 	bool getAutoStart();
+	// "关闭所有快捷键"（托盘菜单项，打游戏防误触）：存 common.disableHotkeys。
+	// set 会立即生效——注销/重新注册所有全局热键；窗口内按键（翻历史那对）不受影响
+	void setDisableHotkeys(bool disable);
+	bool getDisableHotkeys();
 	std::wstring getLang();
 	void setLang(const std::wstring& lang);
 	// 截图选区的边框粗细（逻辑像素，0 = 不画边框）。乘上 dpi 才是物理像素
