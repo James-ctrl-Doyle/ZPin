@@ -179,12 +179,14 @@ private:
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushBg;
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushText;
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> crossBrush;
-	// 原地提示（二维码识别结果之类）：一行半透明底 + 白字，画在选区正中，几秒后自己消失。
-	// 与 WinPin 的 showTip 是同一个路子，只是位置在选区中央、窗口本身不退出
+	// 原地提示（二维码识别结果之类）：一行半透明底 + 白字，画在选区正中，2 秒后自己消失。
+	// 与 WinPin 的 showTip 是同一个路子，只是位置在选区中央、窗口默认不退出
 	Microsoft::WRL::ComPtr<IDWriteTextLayout> tipLayout;
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushTipBg;
 	Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> brushTipText;
-	void showTip(const std::wstring& text);
+	// 提示到点后是否连截图窗口一起收掉。二维码"识别成功"那条路传 true
+	bool tipCloseAfter{ false };
+	void showTip(const std::wstring& text, bool closeAfter = false);
 	void paintTip(ID2D1DeviceContext* ctx);
 };
 

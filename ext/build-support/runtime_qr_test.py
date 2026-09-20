@@ -1,8 +1,12 @@
-"""验证二维码识别的新行为（第 2 项）：不弹框、不关窗，原地显示一行提示、3 秒后消失。
+"""验证二维码识别"没扫到"那条路的行为：不弹框、不关窗，原地显示一行提示、2 秒后消失。
 
-屏幕上没有二维码时走的是"未识别到二维码"那条路，但提示机制完全一样
-（同样的 showTip / paintTip / 3 秒定时器），足够验证这一项：
-  点二维码按钮 → 截图窗口还在、选区正中出现深色提示框 + 白字 → 3.5 秒后提示消失
+屏幕上没有二维码时走的是"未识别到二维码"那条路（同样的 showTip / paintTip / 定时器），
+足够验证提示机制与"不该关窗"这一点：
+  点二维码按钮 -> 截图窗口还在、选区正中出现深色提示框 + 白字 -> 2.4 秒后提示消失
+
+⚠ 2.4 这个等待值是有判别力的：提示时长是 2 秒，所以 2.4 秒时它必须已经没了；
+  万一有人把时长改回 3 秒，这条用例会失败。
+⚠ "识别成功"那条路（提示 2 秒后**自动退出截图状态**）由 runtime_qr_close_test.py 负责。
 """
 import ctypes
 import os
@@ -158,10 +162,10 @@ def main():
         win_alive = [w for w in windows_of(pid) if w['visible'] and w['hwnd'] == capwnd]
         print('   点之后：平均亮度 %.1f 亮点 %d；截图窗口还在 = %s'
               % (during[0], during[1], bool(win_alive)))
-        time.sleep(3.2)
+        time.sleep(2.4)     # 提示时长 2 秒，2.4 秒时它必须已经消失了
         after = center_stats(cx, cy)
         win_alive2 = [w for w in windows_of(pid) if w['visible'] and w['hwnd'] == capwnd]
-        print('   3.2 秒后：平均亮度 %.1f 亮点 %d；截图窗口还在 = %s'
+        print('   2.4 秒后：平均亮度 %.1f 亮点 %d；截图窗口还在 = %s'
               % (after[0], after[1], bool(win_alive2)))
     finally:
         try:
@@ -174,7 +178,7 @@ def main():
     # 用 25 会漏掉一大半；用 15 能完整框住"被盖住的那一块 + 白字"
     d_tip = changed(before[2], during[2], 15)
     d_gone = changed(before[2], after[2], 15)
-    print('   与"点之前"相比：点击后变化像素 %d，3.2 秒后变化像素 %d（共 %d）'
+    print('   与"点之前"相比：点击后变化像素 %d，2.4 秒后变化像素 %d（共 %d）'
           % (d_tip, d_gone, len(before[2])))
     ok = True
     if not win_alive:
@@ -188,10 +192,10 @@ def main():
     else:
         print('  => 通过：选区正中出现了提示（%d 个像素被改动）' % d_tip)
     if d_gone > d_tip * 0.35:
-        print('  => **问题：3 秒后提示没消失**')
+        print('  => **问题：2 秒后提示没消失**')
         ok = False
     else:
-        print('  => 通过：3 秒后提示自己消失了（残留变化只有 %d）' % d_gone)
+        print('  => 通过：2 秒后提示自己消失了（残留变化只有 %d）' % d_gone)
     return 0 if ok else 1
 
 

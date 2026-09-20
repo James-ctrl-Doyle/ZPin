@@ -22,10 +22,10 @@ namespace
     constexpr float scaleNum{ 5.f }, srcW{ 50.f }, srcH{ 30.f };
     constexpr float pixImgH{ scaleNum * srcH };
     constexpr float pixW{ srcW * scaleNum };
-    // 原地提示的定时器 id 与显示时长。18 / 19 是 CapLong 的滚动定时器、100 是绘图夹点，
+    // 原地提示的定时器 id 与显示时长（2 秒）。18 / 19 是 CapLong 的滚动定时器、100 是绘图夹点，
     // 这里避开它们（宿主窗口上共用一套 id）
     constexpr UINT tipMsgId = 21;
-    constexpr UINT tipShowMs = 3000;
+    constexpr UINT tipShowMs = 2000;
 }
 
 std::unique_ptr<WinCap> winCap;
@@ -49,13 +49,21 @@ WinCap::WinCap() : ToolHost()
             }
             return;
         }
-        // 原地提示到点了：收掉它并重画
-        if (id == tipMsgId) {
-            tipLayout.Reset();
-            killTimer(tipMsgId);
-            refresh();
-            return;
-        }
+          // 原地提示到点了：收掉它并重画。
+          // 如果这次提示来自"二维码识别成功"，说明用户只是来扫个码，顺手把截图状态一起退掉
+          if (id == tipMsgId) {
+              tipLayout.Reset();
+              killTimer(tipMsgId);
+              if (tipCloseAfter) {
+                  tipCloseAfter = false;
+                  // close() 里 DestroyWindow 会同步进 onClosed()，那里把 winCap.reset() 推迟到
+                  // 下一轮消息循环 —— 所以这里返回之后不要再碰本对象的任何成员
+                  close();
+                  return;
+              }
+              refresh();
+              return;
+          }
         if (capLong) capLong->onTimerCB(id);
     });
     onDestroy.add([this]() { this->onClosed(); });
@@ -183,10 +191,11 @@ void WinCap::paintTip(ID2D1DeviceContext* ctx)
     ctx->DrawTextLayout({ bgRect.left + pad, bgRect.top + pad }, tipLayout.Get(), brushTipText.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
 }
 
-void WinCap::showTip(const std::wstring& text)
+void WinCap::showTip(const std::wstring& text, bool closeAfter)
 {
     tipLayout = Ling::D2D::get()->makeTextLayout(text, 13.f * dpi);
-    // 先撤掉上一次的定时器再重新计时：连着点两次二维码，第二次应该重新显示满 3 秒
+    tipCloseAfter = closeAfter;
+    // 先撤掉上一次的定时器再重新计时：连着点两次二维码，第二次应该重新显示满 2 秒
     killTimer(tipMsgId);
     setTimer(tipShowMs, tipMsgId);
     refresh();
@@ -993,14 +1002,15 @@ void WinCap::startQrcode()
     int cw{ 0 }, ch{ 0 };
     if (!getCutPixels(pixels, cw, ch)) return;
     auto text = Util::decodeQrCode(cw, ch, pixels.data());
-    // 不弹框、也不关窗：认出来就静默写进剪切板，然后在选区正中显示一行提示，
-    // 3 秒后自己消失（见 showTip）。这样连扫几张二维码不会被模态框打断
+    // 不弹框：认出来就静默写进剪切板，在选区正中显示一行提示；提示停留 2 秒之后
+    // **连截图窗口一起收掉**（用户来就是为了扫个码，不用再自己按 ESC 或点关闭）。
+    // 没认出来就留在原地，方便调整选区重扫 —— 那种情况下自动退出反而碍事
     if (text.empty()) {
         showTip(Lang::get(L"cap.qrcodeEmpty"));
     }
     else {
         Ling::Util::setTextToClipboard(text);
-        showTip(Lang::get(L"cap.qrcodeCopied"));
+        showTip(Lang::get(L"cap.qrcodeCopied"), true);
     }
 }
 
