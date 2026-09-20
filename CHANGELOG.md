@@ -1,6 +1,6 @@
 # 更新日志
 
-## 未发布（当前版本 2.5.15；基线 = 上游 xland/ScreenCapture@7188cb5）
+## 2.6.0（2026-09-20；基线 = 上游 xland/ScreenCapture@7188cb5）
 
 下面都是本 fork 相对上游的改动。
 
