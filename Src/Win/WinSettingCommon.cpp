@@ -4,14 +4,17 @@
 #include "../Util.h"
 #include "WinSetting.h"
 #include "WinSettingCommon.h"
+#include <shellapi.h>   // IsUserAnAdmin / ShellExecuteW（管理员检测与重启）
+#include <thread>       // 重启确认后延迟退出自己的那个计时线程
 
 WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
 {    
-    initAutoStartCtrls();
-    initLangCtrls();
-    initBorderCtrl();
-    initSaveCtrls();
-    initHistoryCtrl();
+      initAutoStartCtrls();
+      initLangCtrls();
+      initBorderCtrl();
+      initSaveCtrls();
+      initHistoryCtrl();
+      initAdminCtrls();
     auto weakThis = getWeakThis();
     // 这个回调一直挂在窗口上，而本节点可能在窗口关闭之前就被菜单切换换掉了，
     // 所以先确认自己还活着再去碰成员
@@ -24,6 +27,59 @@ WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
 WinSettingCommon::~WinSettingCommon()
 {
     win->onMouseDown.remove(onMouseDownToken);
+}
+
+void WinSettingCommon::initAdminCtrls()
+{
+    auto box = makeChild<Ling::Node>();
+    box->setHeight(39.f);
+    box->setFlexDirection(Ling::FlexDirection::Row);
+    box->setAlignItems(Ling::Align::Center);
+
+    auto label = box->makeChild<Ling::Label>();
+    label->setText(Lang::get(L"setting.admin"));
+    label->setHeightPercent(100.f);
+    label->setJustifyContent(Ling::Justify::Center);
+    label->setFlexGrow(1.f);
+
+    // 任务管理器这类管理员窗口，普通权限的进程往它身上注入鼠标/键盘会被 UIPI 拦掉，
+    // 截图自然截不了。解决办法只有一个：程序本身以管理员跑。这里给出当前状态，
+    // 非管理员时提供一键重启（走 UAC 确认）
+    const bool isAdmin = IsUserAnAdmin() != 0;
+
+    auto btn = box->makeChild<Ling::Button>();
+    btn->setHeightPercent(100.f);
+    btn->setWidth(180.f);
+    btn->setFontSize(13.f);
+
+    if (isAdmin) {
+        btn->setText(Lang::get(L"setting.adminRunning"));
+        btn->setColor(0x999999FF);
+        // 不挂 onClick：已经是管理员了，没有可点的动作
+    }
+    else {
+        btn->setText(Lang::get(L"setting.adminRestart"));
+        btn->setColor(0x333333FF);
+        btn->setHoverBg(0xF2F2F2ff);
+        btn->onClick.add([this](Ling::Button*) {
+            wchar_t exePath[MAX_PATH];
+            GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+            // runas 触发 UAC：确认后新实例以管理员起来（托盘待命），本实例延迟退出。
+            // 延迟留给新实例起托盘的工夫，避免两边图标同时闪；退出必须回 UI 线程
+            //（quit 是 PostQuitMessage），所以用 dq 投递而不是直接调
+            if ((INT_PTR)ShellExecuteW(nullptr, L"runas", exePath, nullptr, nullptr, SW_SHOWNORMAL) > 32) {
+                std::thread([]() {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+                    Ling::App::get()->dq.TryEnqueue([]() { Ling::App::get()->quit(0); });
+                }).detach();
+            }
+            // 用户在 UAC 上点了"否"：什么都不做，留在原地
+        });
+    }
+
+    auto border = makeChild<Ling::Node>();
+    border->setHeight(1.f);
+    border->setBg(0xE0E0E0FF);
 }
 
 void WinSettingCommon::initAutoStartCtrls()

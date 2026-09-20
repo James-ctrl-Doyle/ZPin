@@ -13,8 +13,11 @@ private:
 	void initLangCtrls();
 	// 默认保存位置（选文件夹）+ 快速保存开关
 	void initSaveCtrls();
-	// 截图历史保留天数
-	void initHistoryCtrl();
+  	// 截图历史保留天数
+  	void initHistoryCtrl();
+  	// 管理员模式：显示当前状态，非管理员时可一键以管理员身份重启
+  	// （任务管理器这类管理员窗口，普通权限的进程截不了）
+  	void initAdminCtrls();
 	void updateSaveDirLabel();
 	void updateHistoryLabel();
 	void setQuickSaveBtn(Ling::Button* btn);
