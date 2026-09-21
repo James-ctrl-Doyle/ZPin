@@ -24,7 +24,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EXE="$ROOT/ext/build/bin/x64/Release/ScreenCapture.build.exe"
 REL_DIR="$ROOT/ext/build/release"
+LOG_DIR="$ROOT/ext/build/logs"
 CHANGELOG="$ROOT/CHANGELOG.md"
+
+# ⚠ 后面所有 git 都用"先 cd 进仓库"而不是 `git -C <路径>`：
+#    git -C 只认 Windows 风格路径，喂它 POSIX 的 /c/Users/... 会直接
+#    fatal: cannot change to '...': No such file or directory —— 而且命令替换
+#    拿到的是空字符串，工作区检查会**假通过**。踩过。
+cd "$ROOT" || { echo "!! 进不去 $ROOT" >&2; exit 1; }
 
 winpath() {
     if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"
@@ -34,11 +41,13 @@ winpath() {
 die() { echo "!! $*" >&2; exit 1; }
 
 # ———— 1. 工作区要干净 ————
-if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
+DIRTY="$(git status --porcelain)"
+if [ -n "$DIRTY" ]; then
     echo "!! 工作区有未提交的改动，先提交再发（发布件必须对应到一个确定的提交）"
-    git -C "$ROOT" status --short
+    git status --short
     exit 1
 fi
+echo "工作区 : 干净（HEAD = $(git rev-parse --short HEAD)）"
 
 # ———— 2. exe 与版本号 ————
 [ -f "$EXE" ] || die "没有找到 $EXE —— 先跑 bash ext/build-support/rebuild_all.sh"
@@ -54,7 +63,7 @@ echo "tag    : $TAG"
 echo "发布件 : $ASSET_NAME"
 
 # ———— 3. 复制成带版本号的名字 ————
-mkdir -p "$REL_DIR"
+mkdir -p "$REL_DIR" "$LOG_DIR"
 ASSET="$REL_DIR/$ASSET_NAME"
 cp -f "$EXE" "$ASSET"
 echo "已生成 : ${ASSET#$ROOT/}  ($(wc -c < "$ASSET") 字节)"
@@ -75,25 +84,25 @@ if [ "$DRY_RUN" = "1" ]; then
     echo
     echo "---- dry-run：以上都已就绪，没有碰 GitHub ----"
     echo "发布件路径：$ASSET"
-    echo "release 说明预览："
+    echo "release 说明预览（前 10 行）："
     printf '%s\n' "$NOTES" | head -10
     exit 0
 fi
 
 # ———— 5. tag ————
-if git -C "$ROOT" rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     die "tag $TAG 已存在（要重发就先删：git tag -d $TAG && git push origin :refs/tags/$TAG）"
 fi
-git -C "$ROOT" tag -a "$TAG" -m "$TAG"
+git tag -a "$TAG" -m "$TAG"
 # ⚠ git push 的输出走 stderr，不重定向到文件的话会被管道吞掉、看起来像"没生效"
-git -C "$ROOT" push origin "refs/tags/$TAG" > "$ROOT/ext/build/logs/push_tag.log" 2>&1
-echo "tag 已推送：$(tail -1 "$ROOT/ext/build/logs/push_tag.log")"
+git push origin "refs/tags/$TAG" > "$LOG_DIR/push_tag.log" 2>&1
+echo "tag    : 已推送 → $(tail -1 "$LOG_DIR/push_tag.log")"
 
 # ———— 6. token + owner/repo ————
 TOK="$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill 2>/dev/null \
        | sed -n 's/^password=//p')"
 [ -n "$TOK" ] || die "从 git 凭据管理器取不到 token"
-REMOTE="$(git -C "$ROOT" remote get-url origin)"
+REMOTE="$(git remote get-url origin)"
 SLUG="$(printf '%s' "$REMOTE" | sed -e 's|^git@[^:]*:||' -e 's|^https\?://[^/]*/||' -e 's|\.git$||')"
 [ -n "$SLUG" ] || die "解析不出 owner/repo（remote: $REMOTE）"
 echo "仓库   : $SLUG"
