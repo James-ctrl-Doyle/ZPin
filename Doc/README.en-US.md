@@ -20,6 +20,8 @@
 - Supports a variety of command-line arguments for launching a specified function directly.
 - Supports one-time execution mode (the process will not remain resident in the system).
 - Tray menu toggle to disable all global hotkeys at once (game mode, no more accidental F1); the state survives restarts.
+- Launch at startup: one toggle in Settings → General (it writes the per-user registry Run entry).
+  If the app is running as administrator, it also starts elevated at logon.
 - Multi-language support.
 
 ## Download

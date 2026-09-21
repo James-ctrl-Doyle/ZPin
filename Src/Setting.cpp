@@ -1,5 +1,6 @@
 ﻿#include "pch.h"
 #include <algorithm>   // std::transform（把组合串转小写再交给 strToKey）
+#include <shellapi.h>  // IsUserAnAdmin（开机自启要按当前权限写不同的命令行）
 #include <include/Ling.h>
 #include "Setting.h"
 #include "Util.h"
@@ -233,27 +234,82 @@ void Setting::migrateShortcutKeys()
     save();
 }
 
-void Setting::setAutoStart(bool autoStart)
+// ———— 开机自启（注册表 HKCU\...\Run）————
+// 四个容易踩的点：
+//  1. **Run 项没有提权能力**：写进去的程序开机一律以普通权限启动。所以"管理员模式 + 自启"
+//     只能在命令行里留一个标记（--elevate），由启动后的实例自己用 runas 再拉一次
+//     （见 App::relaunchElevatedIfNeeded）。这是注册表方法天生的限制，不是实现取巧。
+//  2. **提权不会换用户**：HKCU 还是同一个用户的配置单元，两种模式写的是同一处，
+//     不需要分 HKLM / HKCU（HKLM 要管理员权限，而且会让自启对这台机器的所有用户生效）
+//  3. **路径必须带引号**：装在 Program Files 这类带空格的目录下，不加引号开机启动直接失败
+//  4. **状态要读注册表**：只信 config 的话，用户在任务管理器里禁用了启动项、或者自己删了键，
+//     UI 上还挂着"已开启"
+namespace
 {
-    std::wstring runKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    constexpr wchar_t autoStartRunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    constexpr wchar_t autoStartValueName[] = L"ScreenCapture";
+}
+
+std::wstring Setting::autoStartCommandLine(bool elevate)
+{
+    wchar_t buffer[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    auto cmd = std::format(L"\"{}\" --auto-start=true", buffer);
+    if (elevate) cmd += L" --elevate=true";
+    return cmd;
+}
+
+bool Setting::writeAutoStartValue(const std::wstring& cmd)
+{
+    HKEY hKey{};
+    // 用 RegCreateKeyEx 而不是 RegOpenKeyEx：Run 键一般都在，但确实见过精简掉它的系统，
+    // 那种情况下 RegOpenKeyEx 会静默失败、开关点了没反应
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, autoStartRunKey, 0, nullptr, 0, KEY_SET_VALUE,
+        nullptr, &hKey, nullptr) != ERROR_SUCCESS) {
+        return false;
+    }
+    auto ok = RegSetValueExW(hKey, autoStartValueName, 0, REG_SZ, (const BYTE*)cmd.data(),
+        (DWORD)((cmd.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS;
+    RegCloseKey(hKey);
+    return ok;
+}
+
+bool Setting::readAutoStartValue(std::wstring& out)
+{
+    HKEY hKey{};
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, autoStartRunKey, 0, KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS) {
+        return false;
+    }
+    wchar_t buffer[1024]{};
+    DWORD size = sizeof(buffer), type = 0;
+    auto ok = RegQueryValueExW(hKey, autoStartValueName, nullptr, &type, (BYTE*)buffer, &size) == ERROR_SUCCESS
+        && type == REG_SZ;
+    RegCloseKey(hKey);
+    if (ok) out = buffer;
+    return ok;
+}
+
+void Setting::removeAutoStartValue()
+{
+    HKEY hKey{};
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, autoStartRunKey, 0, KEY_SET_VALUE, &hKey) != ERROR_SUCCESS) {
+        return;
+    }
+    RegDeleteValueW(hKey, autoStartValueName);
+    RegCloseKey(hKey);
+}
+
+bool Setting::setAutoStart(bool autoStart)
+{
+    bool ok = true;
     if (autoStart) {
-        wchar_t buffer[MAX_PATH];
-        GetModuleFileName(nullptr, buffer, MAX_PATH);
-        auto curPath = std::filesystem::path(buffer);
-        std::wstring commandLine = std::format(L"\"{}\" --auto-start", curPath.wstring());
-        HKEY hKey;
-        if (RegOpenKeyEx(HKEY_CURRENT_USER, runKey.data(), 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
-            RegSetValueEx(hKey, L"ScreenCapture", 0, REG_SZ, (const BYTE*)commandLine.data(), (commandLine.size() + 1) * sizeof(wchar_t));
-            RegCloseKey(hKey);
-        }
+        // 以管理员身份跑着就顺手把提权标记写上：开机后那个实例看到标记会自己再提权一次
+        ok = writeAutoStartValue(autoStartCommandLine(IsUserAnAdmin() != 0));
     }
     else {
-        HKEY hKey;
-        if (RegOpenKeyEx(HKEY_CURRENT_USER, runKey.data(), 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
-            RegDeleteValue(hKey, L"ScreenCapture");
-            RegCloseKey(hKey);
-        }
+        removeAutoStartValue();
     }
+    // config 里也留一份：老版本读的是它，两边对得上，排查问题时也方便
     auto common = configObj.GetNamedObject(L"common", nullptr);
     if (!common) {
         common = JsonObject();
@@ -261,12 +317,27 @@ void Setting::setAutoStart(bool autoStart)
     }
     common.SetNamedValue(L"autoStart", JsonValue::CreateBooleanValue(autoStart));
     save();
+    return ok;
 }
 
 bool Setting::getAutoStart()
 {
-    auto common = configObj.GetNamedObject(L"common", nullptr);
-    return common && common.GetNamedBoolean(L"autoStart", false);
+    std::wstring cmd;
+    return readAutoStartValue(cmd);
+}
+
+// 已经在管理员模式下跑，而注册表里的自启命令行还没带提权标记 —— 补上。
+// 典型来路：用户在普通模式下开了自启，之后转用管理员模式（或在设置页点了"以管理员模式重启"），
+// 那自启也该跟着变成管理员启动。
+// ⚠ 只升不降：手动双击一次普通实例，不该把用户设好的"管理员自启"悄悄降级成普通。
+// 真要降回来，在普通模式下把自启开关关掉再打开一次即可（那时写的就是普通命令行）
+void Setting::syncAutoStartElevation()
+{
+    if (IsUserAnAdmin() == 0) return;
+    std::wstring cmd;
+    if (!readAutoStartValue(cmd)) return;                            // 没开自启，无事可做
+    if (cmd.find(L"--elevate") != std::wstring::npos) return;         // 已经是管理员版
+    writeAutoStartValue(autoStartCommandLine(true));
 }
 
 bool Setting::getDisableHotkeys()

@@ -56,8 +56,15 @@ public:
 	// 没配、配成了空串、或者翻不出键码（Macro 之类）都返回 0 —— 调用方拿 0 去比
 	// 任何真实按键都不会相等，等于这一项没绑键
 	UINT effectiveShortcutVk(const std::wstring& type);
-	void setAutoStart(bool autoStart);
+	// 开机自启（写 HKCU\...\Run）。返回是否真的写成功 —— 写不进去时（组策略、权限）
+	// 开关状态要保持原样，别让用户以为开了
+	bool setAutoStart(bool autoStart);
+	// 以**注册表**为准：这份开关的实际效果由它决定。config 里那份只是留档 ——
+	// 用户在任务管理器里禁用了启动项、或者自己删了键，UI 上还挂着"已开启"就说不过去了
 	bool getAutoStart();
+	// 启动时校正一次：当前以管理员跑着，就给自启命令行补上提权标记。
+	// 只升不降（手动双击一次普通实例不该把用户设好的"管理员自启"悄悄降级）
+	void syncAutoStartElevation();
 	// "关闭所有快捷键"（托盘菜单项，打游戏防误触）：存 common.disableHotkeys。
 	// set 会立即生效——注销/重新注册所有全局热键；窗口内按键（翻历史那对）不受影响
 	void setDisableHotkeys(bool disable);
@@ -111,6 +118,13 @@ private:
 	std::filesystem::path initConfigPath();
 	// 把老配置里的快捷键补齐 / 换到新默认值。只做一次，靠 common.shortcutSchema 记账
 	void migrateShortcutKeys();
+	// ———— 开机自启（注册表 HKCU\...\Run）————
+	// 命令行形如 `"<exe>" --auto-start=true`，elevate 时再带 `--elevate=true`：
+	// 注册表的 Run 项没有提权能力，只能靠这个标记让启动起来的实例自己再 runas 一次
+	static std::wstring autoStartCommandLine(bool elevate);
+	static bool writeAutoStartValue(const std::wstring& cmd);
+	static bool readAutoStartValue(std::wstring& out);
+	static void removeAutoStartValue();
 	void save();
 private:
 	const std::filesystem::path dataPath;

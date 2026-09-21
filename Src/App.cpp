@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <shellapi.h>   // IsUserAnAdmin / ShellExecuteW（自启的提权）
 
 #include "App.h"
 #include "Setting.h"
@@ -127,9 +128,41 @@ void App::excludeFromCapture(HWND hwnd)
     SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
 }
 
-App::App()
+// 开机自启的提权入口。注册表的 Run 项**没有提权能力**：写在里面的程序开机一律以普通权限
+// 启动。所以"管理员模式 + 开机自启"只能自己补一步 —— 自启命令行里带 --elevate=true，
+// 进程起来发现自己是普通权限时，用 runas 再拉一个管理员实例，然后本进程让位。
+// 返回 true = 管理员实例已经拉起来了，本进程应当直接结束。
+bool App::relaunchElevatedIfNeeded()
 {
-    // Ling 的 init 不接受参数：appID 由 App 自己在构造里生成（Ling_XXXXXX，见 Ling 的
+    auto lingApp = Ling::App::get();
+    auto it = lingApp->args.find(L"--elevate");
+    if (it == lingApp->args.end() || it->second != L"true") return false;
+    // 已经是管理员（就是它自己）—— 不用再拉，照常往下走
+    if (IsUserAnAdmin()) return false;
+    wchar_t path[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, path, MAX_PATH);
+    // 参数照搬，但把 --elevate 摘掉：不摘的话提权后的实例又去拉一次，来回套娃。
+    // Ling 把"没有值的开关"也存成 true，照原样拼回 --key=value 即可
+    std::wstring params;
+    for (const auto& kv : lingApp->args) {
+        if (kv.first == L"--elevate") continue;
+        if (!params.empty()) params += L' ';
+        params += kv.second.empty() ? kv.first : std::format(L"{}={}", kv.first, kv.second);
+    }
+    // 把本进程 pid 交给新实例（复用"以管理员模式重启"那套 --wait-pid）：新实例要占单实例、
+    // 还要抢 F1，必须等这边真的退干净。正因如此，本函数的调用点排在 refuseSecondInstance()
+    // 与 Tray::init() **之前**（构造函数里那条注释）
+    if (!params.empty()) params += L' ';
+    params += std::format(L"--wait-pid={}", GetCurrentProcessId());
+    // runas 走标准 UAC：系统设成"不提示直接提升"时静默通过（本机就是），否则会弹一次确认框 ——
+    // 那是"开机就以管理员跑"必然的代价
+    auto r = (INT_PTR)ShellExecuteW(nullptr, L"runas", path, params.c_str(), nullptr, SW_SHOWNORMAL);
+    // 拉不起来（用户在 UAC 上点了"否"之类）就退回普通权限继续跑，总比什么都不启动强
+    return r > 32;
+}
+
+App::App()
+{    // Ling 的 init 不接受参数：appID 由 App 自己在构造里生成（Ling_XXXXXX，见 Ling 的
     // COMPILE_TIME_RAND_STR），并顺手调 SetCurrentProcessExplicitAppUserModelID。
     // 原来这里传的 L"ScreenCapture" 是更早那版 Ling 的写法，公开 master 上已经没有这个参数了
     Ling::init();
@@ -140,6 +173,18 @@ App::App()
     app->onBeforeQuit.add([]() { WinCap::stopIfRecording(); });
     Setting::init();
     Lang::init();
+    // 开机自启来的实例带着 --elevate=true：普通权限下起来就自己再拉一个管理员实例。
+    // ⚠ 必须在下面 refuseSecondInstance() / Tray::init() 之前 —— 新实例要占单实例、抢 F1，
+    //    所以顺手把本进程 pid 交给它（--wait-pid），让它等这边退干净；顺序反了就白拉。
+    // ⚠ 拉起来之后必须**真的退出进程**：光从构造函数 return 只是不进后面的初始化，
+    //    消息循环照跑，进程会以一个"没窗口、没托盘"的僵尸形态挂着不让位
+    if (relaunchElevatedIfNeeded()) {
+        Ling::App::get()->quit(0);   // PostQuitMessage：消息循环一转就退出
+        return;
+    }
+    // 自启的提权标记跟着当前权限走（只升不降）：用户先在普通模式下开了自启、之后转用
+    // 管理员模式，那自启也该变成管理员启动 —— 设置页按钮上会写明"（管理员）"
+    Setting::get()->syncAutoStartElevation();
     if (app->args[L"--auto-quit"] == L"true") {
         WinCap::init();
     }

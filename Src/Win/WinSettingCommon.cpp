@@ -94,18 +94,19 @@ void WinSettingCommon::initAutoStartCtrls()
     label->setJustifyContent(Ling::Justify::Center);
     label->setFlexGrow(1.f);
 
+    // 文字按钮而不是图标开关：原先是一个只有图标的小按钮，状态全靠图标形状区分，
+    // 用户根本看不出这是"开机自启"的开关（功能一直在，只是没人发现）
     auto btn = box->makeChild<Ling::Button>();
-    btn->setText(L"\ue687");
-    btn->setFontFamily(L"icon");
     btn->setHeightPercent(100.f);
-    btn->setFontSize(18.f);
-    btn->setWidth(60.f);
+    btn->setWidth(180.f);
+    btn->setFontSize(13.f);
     setAutoStartBtn(btn);
 
     btn->onClick.add([this](Ling::Button* btn) {
         auto setting = Setting::get();
-        auto isAutoStart = setting->getAutoStart();
-        setting->setAutoStart(!isAutoStart);
+        // 写注册表失败（组策略拦了、或者是精简过没有 Run 键的系统）就别改状态：
+        // 按钮停在原样，用户一眼就知道没生效
+        if (!setting->setAutoStart(!setting->getAutoStart())) return;
         setAutoStartBtn(btn);
     });
 
@@ -338,16 +339,21 @@ void WinSettingCommon::setQuickSaveBtn(Ling::Button* btn)
 void WinSettingCommon::setAutoStartBtn(Ling::Button* btn)
 {
     auto setting = Setting::get();
-    auto isAutoStart = setting->getAutoStart();
-    if (isAutoStart) {
-        btn->setText(L"\ue688");
+    if (setting->getAutoStart()) {
+        // 以管理员模式开的自启，开机后也是管理员（那个实例看到命令行里的 --elevate
+        // 会自己再提权一次，见 App::relaunchElevatedIfNeeded）—— 按钮上把这点写出来，
+        // 免得用户以为"自启了但还是截不了管理员窗口"
+        btn->setText(Lang::get(IsUserAnAdmin() != 0 ? L"setting.autoStartOnAdmin"
+                                                    : L"setting.autoStartOn"));
         btn->setColor(0x597ef7ff);
         btn->setHoverColor(0x597ef7ff);
+        btn->setHoverBg(0xF2F2F2ff);
     }
     else {
-        btn->setText(L"\ue687");
-        btn->setColor(0x666666FF);
-        btn->setHoverColor(0x666666FF);
+        btn->setText(Lang::get(L"setting.autoStartOff"));
+        btn->setColor(0x333333FF);
+        btn->setHoverColor(0x333333FF);
+        btn->setHoverBg(0xF2F2F2ff);
     }
 }
 

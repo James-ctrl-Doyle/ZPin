@@ -25,6 +25,10 @@ class App
 		// 只适合小窗口：铺满整屏的窗口一旦被涂黑（老系统）就是整段录像全黑，
 		// 那种窗口该做的是"别在录制区里画东西"，而不是靠这个标记
 		static void excludeFromCapture(HWND hwnd);
+		// 开机自启专用的提权入口：以 --elevate=true 启动、而且当前不是管理员时，
+		// 自己用 runas 再拉一个管理员实例（注册表的 Run 项没有提权能力，只能这么补）。
+		// 返回 true = 已经拉起来了，本进程应当直接结束
+		static bool relaunchElevatedIfNeeded();
 	private:
 		App();
 };
