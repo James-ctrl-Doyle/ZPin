@@ -9,6 +9,8 @@
 - Screenshot, drawing annotations, scrolling screenshot (long screenshot), screen recording (GIF/MP4), text recognition (OCR, recognized automatically after pasting an image — drag to select text and copy it), QR code recognition.
 - QR code recognition: the content is copied silently and the capture window **closes right away**; the "content copied" toast keeps floating there for 2 seconds as its own little window. No dialog. If nothing is recognized the window stays, so you can adjust the selection and scan again.
 - Color picker, supports shortcut keys to copy RGB color (`Ctrl+R`), HEX color (`Ctrl+H`) and CMYK color (`Ctrl+K`).
+- Nudge the cursor one pixel at a time with `W`/`A`/`S`/`D` (same as the arrow keys) to line the selection start/end up exactly;
+  works both before and after dragging a region. Not captured during long-screenshot / recording, where those keys belong to the app being captured.
 - Draw ellipses, perfect circles (hold `Shift`), rectangles, squares (hold `Shift`), arrows, numbered labels, etc.
 - Draw curves, straight lines (hold `Shift`), mosaic, eraser, text.
 - Modify or delete drawn elements at any time (hover the mouse over an element).

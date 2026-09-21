@@ -450,21 +450,32 @@ void WinCap::onKey(UINT key)
         else if (key == historyNextVk && canGoNextShot()) goNextShot();
         return;
     }
-    else if (key == VK_UP || key == VK_DOWN || key == VK_LEFT || key == VK_RIGHT) {
+    else if (key == VK_UP || key == VK_DOWN || key == VK_LEFT || key == VK_RIGHT
+        || ((key == 'W' || key == 'A' || key == 'S' || key == 'D')
+            && !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)
+            && !(GetKeyState(VK_SHIFT) & 0x8000)
+            && !(GetKeyState(VK_LWIN) & 0x8000) && !(GetKeyState(VK_RWIN) & 0x8000)
+            // ⚠ W/A/S/D 只在截图这两个阶段生效。长图 / 录屏阶段必须让开 ——
+            // 录制时用户要拿 WASD 操作被录的那个程序（游戏里就是方向），
+            // 被这里吃掉就等于"一录屏角色就不会动了"
+            && (stage == CapStage::Select || stage == CapStage::Adjust))) {
         // ← / → 优先用来翻看上一条 / 下一条截图（连标注一起回到当时的样子做不到，
-        // 见 applyShot 的注释）。历史里翻不动时，才退回原来的"空格挪光标一格"，
+        // 见 applyShot 的注释）。历史里翻不动时，才退回原来的"1 像素挪光标一格"，
         // 这样第一次截图时方向键还是老行为。
         // ⚠ 只在"调整选区"阶段兼作翻页：Select 阶段（刚按 F1 还没框）方向键是
         // "1 像素 1 像素挪光标、对准起点"用的，那个阶段不抢它 —— 想看上一张请用
         // 设置里配的翻页键（默认 , 和 .），那两个键两个阶段都生效
+        // ⚠ W/A/S/D 是方向键的别名（左手不用离开键盘就能把落点挪准 1 个像素，
+        // 鼠标手抖很难做到），但它不参与翻页：翻历史有方向键和 , . 就够了
+        const bool arrow = (key == VK_UP || key == VK_DOWN || key == VK_LEFT || key == VK_RIGHT);
         const bool arrowCanNav = (stage == CapStage::Adjust);
-        if (arrowCanNav && key == VK_LEFT && canGoPrevShot()) { goPrevShot(); return; }
-        if (arrowCanNav && key == VK_RIGHT && canGoNextShot()) { goNextShot(); return; }
+        if (arrow && arrowCanNav && key == VK_LEFT && canGoPrevShot()) { goPrevShot(); return; }
+        if (arrow && arrowCanNav && key == VK_RIGHT && canGoNextShot()) { goNextShot(); return; }
         POINT pos;
         GetCursorPos(&pos);
-        if (key == VK_UP) pos.y -= 1;
-        else if (key == VK_DOWN) pos.y += 1;
-        else if (key == VK_LEFT) pos.x -= 1;
+        if (key == VK_UP || key == 'W') pos.y -= 1;
+        else if (key == VK_DOWN || key == 'S') pos.y += 1;
+        else if (key == VK_LEFT || key == 'A') pos.x -= 1;
         else pos.x += 1;
         SetCursorPos(pos.x, pos.y); // 后面的 WM_MOUSEMOVE 会让 onMove 跟着刷新
     }
