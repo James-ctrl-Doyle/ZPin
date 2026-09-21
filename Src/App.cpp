@@ -9,6 +9,7 @@
 #include "./Win/WinCap.h"
 #include "./Win/WinPin.h"
 #include "./Win/WinSetting.h"
+#include "./Win/WinConfirm.h"
 
 std::unique_ptr<App> app;
 
@@ -48,6 +49,8 @@ void App::dispose()
     // 所以趁这里把还开着的窗口先放掉
     WinPin::dispose();
     WinCap::dispose();
+    // 确认框排在设置窗口前面：它攥着设置窗口的句柄（关闭时要把输入还回去）
+    WinConfirm::dispose();
     WinSetting::dispose();
     // 占位窗口也放掉：它一析构、列表就空了，D2D 随之释放（此时已没有别的窗口）
     delete g_deviceKeepAlive;

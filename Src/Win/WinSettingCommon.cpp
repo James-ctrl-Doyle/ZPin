@@ -4,6 +4,7 @@
 #include "../Util.h"
 #include "WinSetting.h"
 #include "WinSettingCommon.h"
+#include "WinConfirm.h"    // 二次确认用自绘的框，不用系统 MessageBox
 #include <shellapi.h>   // IsUserAnAdmin / ShellExecuteW（管理员检测与重启）
 
 WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
@@ -42,39 +43,30 @@ void WinSettingCommon::initAdminCtrls()
     label->setFlexGrow(1.f);
 
     // 任务管理器这类管理员窗口，普通权限的进程往它身上注入鼠标/键盘会被 UIPI 拦掉，
-    // 截图自然截不了。解决办法只有一个：程序本身以管理员跑。这里给出当前状态，
-    // 非管理员时提供一键重启（走 UAC 确认）
+    // 截图自然截不了。解决办法只有一个：程序本身以管理员跑 —— 所以做成一个开关：
+    // 开 = 换成管理员实例重启，关 = 换回普通权限实例重启。
+    // ⚠ 两个方向都要二次确认：点一下就是整个程序重启一遍，误触的代价太大
     const bool isAdmin = IsUserAnAdmin() != 0;
 
-    auto btn = box->makeChild<Ling::Button>();
-    btn->setHeightPercent(100.f);
-    btn->setWidth(180.f);
-    btn->setFontSize(13.f);
-
-    if (isAdmin) {
-        btn->setText(Lang::get(L"setting.adminRunning"));
-        btn->setColor(0x999999FF);
-        // 不挂 onClick：已经是管理员了，没有可点的动作
-    }
-    else {
-        btn->setText(Lang::get(L"setting.adminRestart"));
-        btn->setColor(0x333333FF);
-        btn->setHoverBg(0xF2F2F2ff);
-        btn->onClick.add([this](Ling::Button*) {
-            wchar_t exePath[MAX_PATH];
-            GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-            // runas 触发提升（本机 UAC 是"静默提升"，不弹确认框）。把本进程 pid 传给新实例，
-            // 让它等我们**退出后**再初始化 —— 顺序反过来的话，新实例注册 F1 时我们还占着
-            // 热键，注册会静默失败；而且 Ling 的单实例检查也会直接把新实例踢掉。
-            // 拉起成功就立刻退出自己，剩下的交给新实例
-            wchar_t argBuf[64];
-            swprintf_s(argBuf, L"--wait-pid=%lu", GetCurrentProcessId());
-            if ((INT_PTR)ShellExecuteW(nullptr, L"runas", exePath, argBuf, nullptr, SW_SHOWNORMAL) > 32) {
-                Ling::App::get()->quit(0);
-            }
-            // 用户拒绝提升（或提升失败）：什么都不做，留在原地
-        });
-    }
+    auto btn = makeOnOffBtn(box);
+    styleToggle(btn, isAdmin, Lang::get(L"setting.toggleOnAdmin"));
+    btn->onClick.add([this](Ling::Button*) {
+        // 二次确认走自绘的 WinConfirm（系统的 MessageBox 跟这个程序的观感不搭）。
+        // 它是模态的：开着的时候设置窗口收不到输入，点"确定"才真去重启
+        if (IsUserAnAdmin()) {
+            // 退出管理员模式：降权重启（提权进程造不出普通权限的子进程，见 relaunchSelf）
+            WinConfirm::showAt(win, Lang::get(L"setting.adminExitTitle"),
+                Lang::get(L"setting.adminExitConfirm"), Lang::get(L"setting.ok"),
+                []() { if (relaunchSelf(false)) Ling::App::get()->quit(0); });
+        }
+        else {
+            // runas 触发提升（本机 UAC 是"静默提升"，不弹确认框）
+            WinConfirm::showAt(win, Lang::get(L"setting.adminRestartTitle"),
+                Lang::get(L"setting.adminRestartConfirm"), Lang::get(L"setting.ok"),
+                []() { if (relaunchSelf(true)) Ling::App::get()->quit(0); });
+        }
+        // 没拉起来（用户在 UAC 上点了"否"、或者令牌复制失败）：留在原地，什么都不做
+    });
 
     auto border = makeChild<Ling::Node>();
     border->setHeight(1.f);
@@ -96,10 +88,7 @@ void WinSettingCommon::initAutoStartCtrls()
 
     // 文字按钮而不是图标开关：原先是一个只有图标的小按钮，状态全靠图标形状区分，
     // 用户根本看不出这是"开机自启"的开关（功能一直在，只是没人发现）
-    auto btn = box->makeChild<Ling::Button>();
-    btn->setHeightPercent(100.f);
-    btn->setWidth(180.f);
-    btn->setFontSize(13.f);
+    auto btn = makeOnOffBtn(box);
     setAutoStartBtn(btn);
 
     btn->onClick.add([this](Ling::Button* btn) {
@@ -231,7 +220,7 @@ void WinSettingCommon::initSaveCtrls()
         border->setHeight(1.f);
         border->setBg(0xE0E0E0FF);
     }
-    // ———— 快速保存开关（照"开机自启动"那个开关的写法）————
+    // ———— 快速保存开关（与"开机自启动""管理员模式"同一套样式）————
     {
         auto box = makeChild<Ling::Node>();
         box->setHeight(39.f);
@@ -244,12 +233,7 @@ void WinSettingCommon::initSaveCtrls()
         label->setJustifyContent(Ling::Justify::Center);
         label->setFlexGrow(1.f);
 
-        auto btn = box->makeChild<Ling::Button>();
-        btn->setText(L"\ue687");
-        btn->setFontFamily(L"icon");
-        btn->setHeightPercent(100.f);
-        btn->setFontSize(18.f);
-        btn->setWidth(60.f);
+        auto btn = makeOnOffBtn(box);
         setQuickSaveBtn(btn);
         btn->onClick.add([this](Ling::Button* btn) {
             auto setting = Setting::get();
@@ -323,38 +307,90 @@ void WinSettingCommon::updateHistoryLabel()
 
 void WinSettingCommon::setQuickSaveBtn(Ling::Button* btn)
 {
-    auto on = Setting::get()->getQuickSave();
-    if (on) {
-        btn->setText(L"\ue688");
-        btn->setColor(0x597ef7ff);
-        btn->setHoverColor(0x597ef7ff);
-    }
-    else {
-        btn->setText(L"\ue687");
-        btn->setColor(0x666666FF);
-        btn->setHoverColor(0x666666FF);
-    }
+    styleToggle(btn, Setting::get()->getQuickSave(), Lang::get(L"setting.toggleOn"));
 }
 
 void WinSettingCommon::setAutoStartBtn(Ling::Button* btn)
 {
-    auto setting = Setting::get();
-    if (setting->getAutoStart()) {
-        // 以管理员模式开的自启，开机后也是管理员（那个实例看到命令行里的 --elevate
-        // 会自己再提权一次，见 App::relaunchElevatedIfNeeded）—— 按钮上把这点写出来，
-        // 免得用户以为"自启了但还是截不了管理员窗口"
-        btn->setText(Lang::get(IsUserAnAdmin() != 0 ? L"setting.autoStartOnAdmin"
-                                                    : L"setting.autoStartOn"));
+    // 以管理员模式开的自启，开机后也是管理员（那个实例看到命令行里的 --elevate
+    // 会自己再提权一次，见 App::relaunchElevatedIfNeeded）—— 按钮上把这点写出来，
+    // 免得用户以为"自启了但还是截不了管理员窗口"
+    auto on = Setting::get()->getAutoStart();
+    styleToggle(btn, on, Lang::get(IsUserAnAdmin() != 0 ? L"setting.toggleOnAdmin"
+                                                        : L"setting.toggleOn"));
+}
+
+// ———— 三个开关共用的一小套 ————
+
+Ling::Button* WinSettingCommon::makeOnOffBtn(Ling::Node* row)
+{
+    auto btn = row->makeChild<Ling::Button>();
+    btn->setHeightPercent(100.f);
+    btn->setWidth(180.f);
+    btn->setFontSize(13.f);
+    btn->setHoverBg(0xF2F2F2ff);
+    return btn;
+}
+
+void WinSettingCommon::styleToggle(Ling::Button* btn, bool on, const std::wstring& onText)
+{
+    if (on) {
+        btn->setText(onText);
         btn->setColor(0x597ef7ff);
         btn->setHoverColor(0x597ef7ff);
-        btn->setHoverBg(0xF2F2F2ff);
     }
     else {
-        btn->setText(Lang::get(L"setting.autoStartOff"));
+        btn->setText(Lang::get(L"setting.toggleOff"));
         btn->setColor(0x333333FF);
         btn->setHoverColor(0x333333FF);
-        btn->setHoverBg(0xF2F2F2ff);
     }
+}
+
+// 把自己重新拉起来。新实例带 --wait-pid=<本进程 pid>，等这边退干净再初始化 ——
+// 否则会被 Ling 的单实例检查判成"第二个实例"直接退出，热键也抢不到。
+//   elevate = true ：ShellExecuteW runas，走 UAC 提升
+//   elevate = false：换成**普通权限**的实例。不能直接 CreateProcess —— 提权进程造出来的
+//                    子进程一律继承提权令牌，等于没退出去。正规做法是借已登录的 shell
+//                    （explorer，跑在用户会话、中等完整性）的令牌来起：
+//                    GetShellWindow → 它的进程令牌 → DuplicateTokenEx → CreateProcessWithTokenW
+bool WinSettingCommon::relaunchSelf(bool elevate)
+{
+    wchar_t exePath[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    wchar_t argBuf[64]{};
+    swprintf_s(argBuf, L"--wait-pid=%lu", GetCurrentProcessId());
+    if (elevate) {
+        return (INT_PTR)ShellExecuteW(nullptr, L"runas", exePath, argBuf, nullptr, SW_SHOWNORMAL) > 32;
+    }
+    HWND shellWnd = GetShellWindow();
+    if (!shellWnd) return false;
+    DWORD shellPid = 0;
+    GetWindowThreadProcessId(shellWnd, &shellPid);
+    if (!shellPid) return false;
+    HANDLE shellProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, shellPid);
+    if (!shellProc) return false;
+    HANDLE shellToken = nullptr, dupToken = nullptr;
+    auto ok = OpenProcessToken(shellProc, TOKEN_DUPLICATE | TOKEN_QUERY, &shellToken) != 0
+        && DuplicateTokenEx(shellToken, MAXIMUM_ALLOWED, nullptr, SecurityImpersonation,
+            TokenPrimary, &dupToken) != 0;
+    if (shellToken) CloseHandle(shellToken);
+    CloseHandle(shellProc);
+    if (!ok) {
+        if (dupToken) CloseHandle(dupToken);
+        return false;
+    }
+    std::wstring cmd = std::format(L"\"{}\" {}", exePath, argBuf);
+    STARTUPINFOW si{ sizeof(si) };
+    PROCESS_INFORMATION pi{};
+    // CreateProcessWithTokenW 需要 SeImpersonatePrivilege —— 管理员进程默认就带
+    auto created = CreateProcessWithTokenW(dupToken, LOGON_WITH_PROFILE, nullptr, cmd.data(),
+        0, nullptr, nullptr, &si, &pi) != 0;
+    CloseHandle(dupToken);
+    if (created) {
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    return created != 0;
 }
 
 void WinSettingCommon::hideSelectBox()
