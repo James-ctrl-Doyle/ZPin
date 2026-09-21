@@ -90,13 +90,16 @@ if [ "$DRY_RUN" = "1" ]; then
 fi
 
 # ———— 5. tag ————
+# 已存在就复用：这个脚本要能**重入** —— 上传资产那步可能因为网络/路径之类失败，
+# 那时 tag 和 release 都已经建好了，重跑不能卡在"tag 已存在"上。
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-    die "tag $TAG 已存在（要重发就先删：git tag -d $TAG && git push origin :refs/tags/$TAG）"
+    echo "tag    : $TAG 已存在，复用"
+else
+    git tag -a "$TAG" -m "$TAG"
+    # ⚠ git push 的输出走 stderr，不重定向到文件的话会被管道吞掉、看起来像"没生效"
+    git push origin "refs/tags/$TAG" > "$LOG_DIR/push_tag.log" 2>&1
+    echo "tag    : 已推送 → $(tail -1 "$LOG_DIR/push_tag.log")"
 fi
-git tag -a "$TAG" -m "$TAG"
-# ⚠ git push 的输出走 stderr，不重定向到文件的话会被管道吞掉、看起来像"没生效"
-git push origin "refs/tags/$TAG" > "$LOG_DIR/push_tag.log" 2>&1
-echo "tag    : 已推送 → $(tail -1 "$LOG_DIR/push_tag.log")"
 
 # ———— 6. token + owner/repo ————
 TOK="$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill 2>/dev/null \
@@ -107,23 +110,37 @@ SLUG="$(printf '%s' "$REMOTE" | sed -e 's|^git@[^:]*:||' -e 's|^https\?://[^/]*/
 [ -n "$SLUG" ] || die "解析不出 owner/repo（remote: $REMOTE）"
 echo "仓库   : $SLUG"
 
-# ———— 7. 建 release ————
-BODY_JSON="$(printf '%s' "$NOTES" | python -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
-RESP="$(curl -sS -X POST \
+# ———— 7. 建 release（已存在就复用）————————
+EXISTING="$(curl -sS \
     -H "Authorization: token $TOK" \
-    -H "Accept: application/vnd.github+json" \
-    "https://api.github.com/repos/$SLUG/releases" \
-    -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"body\":$BODY_JSON,\"draft\":false,\"prerelease\":false}")"
-REL_ID="$(printf '%s' "$RESP" | sed -n 's/.*"id":[[:space:]]*\([0-9]\{1,\}\).*/\1/p' | head -1)"
-[ -n "$REL_ID" ] || die "建 release 失败：$RESP"
-echo "release: #$REL_ID 已创建（$TAG）"
+    "https://api.github.com/repos/$SLUG/releases/tags/$TAG")"
+REL_ID=""
+if printf '%s' "$EXISTING" | grep -q '"tag_name"'; then
+    REL_ID="$(printf '%s' "$EXISTING" | sed -n 's/.*"id":[[:space:]]*\([0-9]\{1,\}\).*/\1/p' | head -1)"
+    echo "release: #$REL_ID 已存在，复用"
+fi
+if [ -z "$REL_ID" ]; then
+    BODY_JSON="$(printf '%s' "$NOTES" | python -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+    RESP="$(curl -sS -X POST \
+        -H "Authorization: token $TOK" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/$SLUG/releases" \
+        -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"body\":$BODY_JSON,\"draft\":false,\"prerelease\":false}")"
+    REL_ID="$(printf '%s' "$RESP" | sed -n 's/.*"id":[[:space:]]*\([0-9]\{1,\}\).*/\1/p' | head -1)"
+    [ -n "$REL_ID" ] || die "建 release 失败：$RESP"
+    echo "release: #$REL_ID 已创建（$TAG）"
+fi
 
 # ———— 8. 传 exe ————
-# ⚠ 资产上传端点是 uploads.github.com —— 用 api.github.com 会 404
+# ⚠ 两个坑都踩过：
+#   1. 资产上传端点是 uploads.github.com —— 用 api.github.com 会 404
+#   2. `--data-binary @文件` 后面**必须给 Windows 风格路径**：本机的 curl 是 Windows
+#      版，喂它 POSIX 的 /c/... 会报 "option --data-binary: error encountered when
+#      reading a file"（和 git -C 不认 /c/ 是同一类问题）。所以过一遍 winpath。
 UP="$(curl -sS -X POST \
     -H "Authorization: token $TOK" \
     -H "Content-Type: application/octet-stream" \
-    --data-binary @"$ASSET" \
+    --data-binary @"$(winpath "$ASSET")" \
     "https://uploads.github.com/repos/$SLUG/releases/$REL_ID/assets?name=$ASSET_NAME")"
 if printf '%s' "$UP" | grep -q '"browser_download_url"'; then
     DL="$(printf '%s' "$UP" | sed -n 's/.*"browser_download_url":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
