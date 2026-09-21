@@ -42,6 +42,10 @@ namespace Ling {
 	{
 		text->setFontFamily(val);
 	}
+	void Button::setMaxTextWidth(float val)
+	{
+		text->setMaxWidth(val);
+	}
 	void Button::setColor(Color color)
 	{
 		text->setColor(color);

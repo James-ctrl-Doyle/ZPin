@@ -26,7 +26,18 @@ namespace Ling {
         DWRITE_TEXT_METRICS m;
         self->textLayout->GetMetrics(&m);
         // 向上取整到整像素，返回给 yoga 用于布局（下游会得到整数 x/y）。
+        // ⚠ 这里的 m.width 在设了 maxWidth 时会自动 ≤ maxWidth*dpi（layout 本身就建在
+        //    那个宽度上），不用再夹一次 —— 夹了反而和 paint 里画的宽度对不上
         return { std::ceil(m.width), std::ceil(m.height) };
+    }
+
+    void Text::setMaxWidth(float val)
+    {
+        maxWidth = val;
+        // 得重建 layout：宽度是建 layout 时传进 CreateTextLayout 的
+        makeLayout();
+        YGNodeMarkDirty(node);
+        win->refresh();
     }
 
     void Text::makeLayout()
@@ -34,7 +45,9 @@ namespace Ling {
         auto d2d = D2D::get();
         if (!d2d || !d2d->dwriteFactory) return;
         auto format = d2d->getTextFormat(fontFamily);
-        d2d->dwriteFactory->CreateTextLayout(text.data(), (UINT32)text.length(), format, FLT_MAX, FLT_MAX, textLayout.ReleaseAndGetAddressOf());
+        // maxWidth 是逻辑像素，换算成设备像素再交给 DWrite。0 = 沿用旧行为（FLT_MAX）
+        const float limitPx = maxWidth > 0.f ? maxWidth * win->dpi : FLT_MAX;
+        d2d->dwriteFactory->CreateTextLayout(text.data(), (UINT32)text.length(), format, limitPx, FLT_MAX, textLayout.ReleaseAndGetAddressOf());
         if (!textLayout) return;
         textLayout->SetFontSize(fontSize * win->dpi, { 0, INT_MAX });
         if (!fontFamily.empty()) {

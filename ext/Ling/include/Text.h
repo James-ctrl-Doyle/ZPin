@@ -22,6 +22,16 @@ namespace Ling {
         void setFontSize(float val);
         void setFontFamily(const std::wstring& val);
         void setColor(Color color);
+        // 约束文字的最大宽度（逻辑像素，内部 ×dpi）。
+        //
+        // 为什么需要它：Text 是按钮/标签的子节点，而建 layout 用的是 FLT_MAX —— 即
+        // **无约束**，永不折行，measureCB 也直接返回这个自然宽度。于是父节点无论设多宽
+        // 都拦不住文字，它会按自然宽度居中画出去、溢出到父容器之外（设置-关于-项目
+        // 那一项就是这么坏的：41 字符的地址从 120px 宽的按钮里画出来，压到窗口边上）。
+        // 设了 maxWidth 之后：measure 返回被夹住的宽度，绘制也在同一宽度上 CreateTextLayout，
+        // 超出部分由 DWrite 自己按 word wrapping 处理。
+        // ⚠ 传 0 或负数 = 不约束（回到原行为）
+        void setMaxWidth(float val);
     private:
         // 尺寸/布局完全由内容决定，屏蔽掉外部改尺寸、改子节点的 API，避免误用。
         using Node::makeChild;
@@ -59,5 +69,7 @@ namespace Ling {
         std::wstring text;
         std::wstring fontFamily;
         float fontSize{ 12.f };
+        // 0 = 不约束。见 setMaxWidth 的说明
+        float maxWidth{ 0.f };
     };
 }

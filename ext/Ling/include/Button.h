@@ -13,6 +13,9 @@ namespace Ling {
 		std::wstring getText();
 		void setFontSize(float val);
 		void setFontFamily(const std::wstring& val);
+		// 约束按钮文字的最大宽度：按钮本身不裁文字（Text 子节点画在自己的 surface 上），
+		// 想让长文案老实待在按钮里就得把宽度告诉 Text。见 Text::setMaxWidth
+		void setMaxTextWidth(float val);
 		void setColor(Color color);
 		void setBg(const Color& color) override;
 		void setBorderColor(const Color& color) override;
