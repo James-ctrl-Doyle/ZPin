@@ -1,5 +1,6 @@
-# ---- 编译产物 ----
-# exe / 中间产物 / 日志：ext/build 是构建脚本指定的输出目录，整个都不进仓库
+# —— 编译产物 ——
+# 构建输出统一落在 ext/build/（exe、中间产物、日志、发布件、测试依赖都在这儿），
+# 整个目录都不进仓库。见 Doc/Build.md
 /ext/build/
 **/x64/
 **/Release/
@@ -20,43 +21,33 @@
 *.TMP
 enc_temp_folder/
 
-# Visual Studio 的每用户文件（.vcxproj.user 存的是本机的调试/启动设置，别人用不上）
+# Visual Studio 的每用户文件（.vcxproj.user 存本机的调试/启动设置，别人用不上）
 *.vcxproj.user
 *.sln.docstates
 Src/Res/Resource.aps
 Res.aps
 
-# 本机生成的构建工程（里面有本机绝对路径，用 ext/build-support/make_build_project.py 现场生成）
+# 本机生成的构建工程副本：里面焊着本机绝对路径，由
+# ext/build-support/make_build_project.py 每次构建现场生成
 Src/ScreenCapture.build.vcxproj
 
-# ---- 运行时数据 ----
-# 程序把 config.json / temp 放在 exe 同目录；exe 在 ext/build 下（上面已排除），
-# 但手工把 exe 拷到别处跑的时候这里再兜一道
+# —— 运行时数据 ——
+# 程序把 config.json / temp 放在 exe 同目录。exe 正常都在 ext/build 下（已被排除），
+# 这条是给"手工把 exe 拷到别处跑"兜底
 config.json
 /temp/
 
-# ---- 本地专用目录（不进仓库）----
-# _attic 是过期脚本的存放处；_backup_* 是改代码前留的备份；_removed_gif 是删 GIF 时留的档；
-# _backup_ling_git 是 Ling 内置之前挪出来的上游 .git（想对比上游时用得上）
-/_attic/
-/_backup_src/
-/_backup_lang/
-/_backup_ling_git/
-/_removed_gif/
+# —— 本地目录：下划线开头的一律不进仓库 ——
+# 约定：所有只是本机用、不该进仓库的目录都以下划线开头，统一归到 _attic/ 下
+#   _attic/              归档区（过期脚本、改代码前的备份、删功能时留的档、Ling 内置前
+#                        挪出来的上游 .git、撤销的 _review 等）
+# 一条通配覆盖全部，以后新加同类目录不用再改这里。
+# ⚠ 副作用：确实需要进仓库的目录别用下划线开头。
+/_*/
 
-# _tools 已废弃（2026-09-22）：开发脚本统一收进 ext/build-support/，不再有仓库外的工具目录。
-# 万一哪台机器上还留着旧的 _tools/（里面有本地环境），别再让它进仓库。
-/_tools/
-
-# _review 已撤销（2026-09-22）：原来那里放着一份手工维护的 exe + config.json 给用户验收，
-# 和 ext/build/release/ 职能重复。配置与运行数据都收进了 ext/build/release/，
-# 这个目录不再需要 —— 留一条规则防止它哪天又冒出来。
-/_review/
-
-# ---- 开发工具的本地环境 ----
-# Pillow 等测试依赖装在 ext/build/.pylibs —— 它落在 ext/build/ 下（整个目录上面已排除），
-# 而且测试脚本通过 ext/build-support/_pylibs.py 显式挂载，不依赖环境里的全局包。
+# —— 开发工具的本地环境 ——
+# Pillow 等测试依赖装在 ext/build/.pylibs（ext/build 上面已排除），
+# 测试脚本通过 ext/build-support/_pylibs.py 显式挂载，不依赖环境里的全局包。
 # 装法：python -m pip install --target ext/build/.pylibs pillow
 __pycache__/
 *.pyc
-
