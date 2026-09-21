@@ -119,9 +119,24 @@ bash ext/build-support/rebuild_all.sh    # 1. 编出 exe（同时备好带版本
 bash ext/build-support/release.sh        # 2. 发到 GitHub Releases
 ```
 
-`release.sh` 会：从 **exe 自己的版本资源**读版本号（不另外维护一处版本号）→ 复制成
-`ext/build/release/ScreenCapture_<版本>.exe` → 从 `CHANGELOG.md` 抽该版本段落当 release 说明
-→ 打 tag `v<版本>` 并推送 → 建 release 并把 exe 传上去。
+`release.sh` 会：从 **exe 自己的版本资源**读版本号（不另外维护一处版本号）→ 确保
+`ext/build/release/ScreenCapture_<版本>.exe` 就位 → 从 `CHANGELOG.md` 抽该版本段落当 release
+说明 → 打 tag `v<版本>` 并推送 → 建 release 并把 exe 传上去。
+
+#### 交付目录 `ext/build/release/`
+
+构建成功后这里就是**一份可直接跑、也可直接发布的完整目录**：
+
+```
+ext/build/release/
+├─ ScreenCapture_2.6.0.exe     # 构建生成（每次重编会覆盖）
+├─ config.json                 # 便携配置：程序读 exe 同目录的这份
+└─ temp/                       # 运行时数据（last.bin、shots/ 截图历史）
+```
+
+要验收就**直接跑这里面的 exe**，它会用旁边那份 `config.json`。
+⚠ 注意别同时开着两份实例 —— 它们会抢 F1 热键，回归测试会整片失败。
+（2026-09-22 之前这里有个 `_review/` 干同样的活，已撤销，配置与运行数据都迁到了这里。）
 
 - 发之前**工作区必须干净**（发布件要对得上一个确定的提交），否则直接拒绝。
 - 先看要发什么、不碰 GitHub：`bash ext/build-support/release.sh --dry-run`

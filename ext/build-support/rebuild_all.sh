@@ -82,7 +82,7 @@ log "ok  (python: $PY)"
 log ""
 
 # 产物 exe 正在运行会挡住链接（LNK1104 无法打开文件）；另外用户自己很可能还开着一份
-# 从 _review/ 起的 ScreenCapture.exe —— 两份实例抢 F1 热键，回归测试会整片失败
+# 从 ext/build/release/ 起的那份 —— 两份实例抢 F1 热键，回归测试会整片失败
 # （表现为"一半用例过、一半挂"）。所以两种名字都先结束掉。这是开发用的构建脚本，反复手杀太烦。
 # taskkill 本机不可用，用 PowerShell 的 Stop-Process。
 if ps -W 2>/dev/null | grep -qi "ScreenCapture"; then
