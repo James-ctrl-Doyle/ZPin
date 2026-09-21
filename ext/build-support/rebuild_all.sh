@@ -72,7 +72,8 @@ if [ -z "$PY" ]; then
     log "   替代做法：用 Visual Studio 打开 $ROOT/ScreenCapture.slnx 直接编译"
     exit 1
 fi
-if ! "$PY" "$(winpath "$ROOT/_tools/make_build_project.py")" > "$LOGS/make_project.log" 2>&1; then
+# 生成脚本与本脚本同目录（ext/build-support/）——2026-09-22 从 _tools/ 搬过来的
+if ! "$PY" "$(winpath "$SCRIPT_DIR/make_build_project.py")" > "$LOGS/make_project.log" 2>&1; then
     log "!! 生成 $ROOT/Src/ScreenCapture.build.vcxproj 失败，日志见 $LOGS/make_project.log"
     cat "$LOGS/make_project.log" >> "$SUMMARY"
     exit 1

@@ -8,6 +8,7 @@ r"""截长图端到端验证（第 4 项：每步滚更多 + 拼接正确性）�
   5. 读 last.bin：核对高度，并逐行比对内容行号 —— 拼接正确的话第 i 行就该是内容第 i 行，
      漏行/重复行都会立刻暴露
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import struct

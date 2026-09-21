@@ -1,12 +1,15 @@
 # 把 iconfont.ttf 里所有码点渲染成一张对照图，用来挑新增按钮的图标。
 # 不改动项目任何文件，只产出一张 png 供人工确认。
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import os
 from PIL import Image, ImageDraw, ImageFont
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.normpath(os.path.join(_HERE, '..'))   # 脚本在 <仓库根>/_tools/ 下
+# 本文件在 <仓库根>/ext/build-support/ 下 —— 往上**两级**才是仓库根
+ROOT = os.path.normpath(os.path.join(_HERE, '..', '..'))
 FONT = os.path.join(ROOT, 'Src', 'Res', 'iconfont.ttf')
-OUT = os.path.join(_HERE, 'iconfont_glyphs.png')   # 渲染结果放脚本旁边
+# 渲染结果丢进产物区（ext/build/ 已被 .gitignore），别落在源码目录里
+OUT = os.path.join(ROOT, 'ext', 'build', 'iconfont_glyphs.png')
 
 # 已经在 ToolMain::btnIds/btnCodes 里用掉的码点（含 WinCap 工具条）
 USED = {0xE8E8, 0xE6BC, 0xE603, 0xE776, 0xE601, 0xE6EC, 0xE82E,

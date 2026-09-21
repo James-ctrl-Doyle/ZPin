@@ -19,6 +19,7 @@ r"""设置页开关与"自绘确认框"的行为验证 —— 按精确坐标点
   3. 再点一次 → 点「确定」→ 程序重启，且新实例是管理员
   4. 管理员实例上点同一个开关 → 标题变成"退出管理员模式"，点确定又回到普通权限
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import subprocess

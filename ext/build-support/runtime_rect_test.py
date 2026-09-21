@@ -5,6 +5,7 @@
   · 内部是形状颜色（红 #CF1322）→ 填充
   · 内部是选区里透出来的桌面原内容 → 空心
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import subprocess

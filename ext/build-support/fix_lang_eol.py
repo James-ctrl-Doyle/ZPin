@@ -7,7 +7,9 @@
 #   2. json.dumps(indent=4) 生成的分隔符就是 '\n'，别想当然以为它带了 '\r'。
 import io, json, os
 
-root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 本文件在 <仓库根>/ext/build-support/ 下 —— 往上**两级**才是仓库根
+root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "..", ".."))
 for name in ("简体中文.zh-CN.json", "English.en-US.json"):
     p = os.path.join(root, "Lang", name)
     with io.open(p, encoding="utf-16") as f:

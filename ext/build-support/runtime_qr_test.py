@@ -8,6 +8,7 @@
   万一有人把时长改回 3 秒，这条用例会失败。
 ⚠ "识别成功"那条路（提示 2 秒后**自动退出截图状态**）由 runtime_qr_close_test.py 负责。
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import subprocess

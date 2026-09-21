@@ -8,6 +8,7 @@
             = clip  录制几秒后点"存剪切板"
             = none  只录，不停（基线）
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import shutil

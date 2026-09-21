@@ -3,6 +3,7 @@
 做法：分别用 borderWidth=0 / 不写（默认 2）跑两轮，F1 → 框选 → 抓屏，
 数一数选区边框那一圈有多少蓝色（#1677ff）像素。
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import subprocess

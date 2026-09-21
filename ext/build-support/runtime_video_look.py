@@ -6,6 +6,7 @@
   2) 点了"录屏"之后（未开始录制） —— enterLiveStage 应该把静态底图撤掉、选区透出活桌面
   3) 录制进行中                  —— 选区里应该是活的桌面
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import subprocess

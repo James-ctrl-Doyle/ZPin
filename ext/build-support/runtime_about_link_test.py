@@ -17,10 +17,7 @@ import sys
 import time
 from ctypes import wintypes
 
-_HERE0 = os.path.dirname(os.path.abspath(__file__))
-_PYLIBS = os.path.normpath(os.path.join(_HERE0, '..', '..', '_tools', '.pylibs'))
-if os.path.isdir(_PYLIBS) and _PYLIBS not in sys.path:
-    sys.path.insert(0, _PYLIBS)
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)

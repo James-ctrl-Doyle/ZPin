@@ -9,6 +9,7 @@
 用的是独立进程 + 便携配置，跑完把临时文件和便携配置都删掉，
 不碰用户 %appdata% 里那份 config.json。
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import struct

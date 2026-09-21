@@ -5,6 +5,7 @@
 盖住"这种问题测不出来。这里改成**真鼠标**：真拖框、真悬停、真点按钮，然后逐个按钮
 中心问 WindowFromPoint，并打印窗口的 z 序（EnumWindows 是从上往下枚举的）。
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import subprocess

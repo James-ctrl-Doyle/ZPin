@@ -8,6 +8,7 @@ r"""验证这一轮的四项改动：
 3) 快速保存：勾上之后点保存直接落到默认目录（用配置里的 saveDir 指到临时目录来验）
 4) 录屏收尾只剩 丢弃 + 保存，保存按钮是对勾（工具条宽度按 2 个按钮算）
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import re

@@ -10,6 +10,7 @@
 
 用法：python runtime_video_repro.py [left top right bottom]（默认贴右边选区）
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import importlib.util
 import os
 import subprocess

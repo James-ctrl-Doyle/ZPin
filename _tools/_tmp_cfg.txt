@@ -1,4 +1,0 @@
-    with open(PORTABLE_CFG, 'w', encoding='utf-16') as f:
-        f.write('{"common":{"autoStart":false,"language":"zh-CN","quickSave":true,')
-        f.write('"saveDir":"%s"},"shortcutKey":{"cap":"F1","pin":"F3"}}')
-        f.write(' % SAVE_DIR.replace(chr(92), chr(92)*2))

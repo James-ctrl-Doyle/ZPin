@@ -7,10 +7,8 @@
 ├─ Src/                 产品源码（含 quirc 二维码解码、Res 资源）
 ├─ Lang/                界面语言文件（UTF-16LE + BOM）
 ├─ Doc/                 文档与图片
-├─ Test/                手工测试脚本
 ├─ ext/Ling/            内置的 Ling GUI 框架（含 yoga 布局引擎）
-├─ ext/build-support/   构建脚本 + 运行时回归测试
-├─ _tools/              开发小工具（图标渲染、算法基准、解码探针）
+├─ ext/build-support/   构建脚本 + 运行时回归测试 + 开发小工具
 └─ ScreenCapture.slnx   解决方案
 ```
 
@@ -27,7 +25,7 @@
 bash ext/build-support/rebuild_all.sh
 ```
 
-脚本会自动：① 用 `_tools/make_build_project.py` 生成构建用的工程副本
+脚本会自动：① 用 `ext/build-support/make_build_project.py` 生成构建用的工程副本
 `Src/ScreenCapture.build.vcxproj`；② 用 `vswhere` 定位 MSBuild；③ 依次重编 yoga → Ling → ScreenCapture，
 日志写到 `ext/build/logs/`。可用环境变量覆盖：`MSBUILD`（MSBuild.exe 路径）、`SC_ROOT`（项目根）。
 
@@ -81,7 +79,7 @@ bash ext/build-support/rebuild_all.sh
 | 依赖 | 用途 |
 |---|---|
 | Python 3 | 运行 `ext/build-support/runtime_*_test.py` 这组回归测试 |
-| [Pillow](https://python-pillow.org/) | 测试里要读屏幕像素、比图。本机装在 `_tools/.pylibs`（不进仓库） |
+| [Pillow](https://python-pillow.org/) | 测试里要读屏幕像素、比图。装在 `ext/build/.pylibs`（**不进仓库**）：`python -m pip install --target ext/build/.pylibs pillow`。测试脚本通过同目录的 `_pylibs.py` 挂载它，不依赖环境里的全局包 |
 | Visual Studio 2026 | 编译（含 C++ 桌面开发组件与 Windows SDK） |
 
 这些都不影响最终产物的构建与运行 —— 产物是单个 exe，无外部依赖。
@@ -98,12 +96,18 @@ Ling 原本是独立仓库（[xland/Ling](https://github.com/xland/Ling)）。�
 
 ## 开发脚本
 
+全部集中在 `ext/build-support/`（2026-09-22 从原来的 `_tools/` 收拢过来）。
+
 | 脚本 | 说明 |
 |---|---|
-| `ext/build-support/rebuild_all.sh` | 完整重编（yoga → Ling → ScreenCapture） |
-| `ext/build-support/runtime_*_test.py` | 运行时回归测试（截图、绘图、长图、录屏、二维码、快捷键、历史回溯…）。需要先编出 exe，并用 exe 同目录的 `config.json` 做便携配置；脚本会备份/还原你真实的配置 |
-| `ext/build-support/scroll_target.py` | 造一个可滚动窗口，供长图测试用 |
-| `_tools/make_build_project.py` | 生成本机用的构建工程副本 |
-| `_tools/render_iconfont.py` | 把 `iconfont.ttf` 的字形渲染成图片，加图标前用来确认码点存在 |
-| `_tools/bench_match.cpp` + `build_bench.sh` | 长图滚动匹配算法的基准（验证剪枝优化结果一致 + 加速比） |
-| `_tools/probe_play.cpp` + `build_probe_play.sh` | Media Foundation 解码探针：把录出来的 mp4 逐帧解出来核对 |
+| `rebuild_all.sh` | 完整重编（yoga → Ling → ScreenCapture） |
+| `runtime_*_test.py` | 运行时回归测试（截图、绘图、长图、录屏、二维码、快捷键、历史回溯、设置页、放大镜…）。需要先编出 exe，并用 exe 同目录的 `config.json` 做便携配置；脚本会备份/还原你真实的配置 |
+| `_pylibs.py` | 把 `ext/build/.pylibs`（Pillow）挂进 `sys.path`。每个要 `import PIL` 的测试脚本在开头 `import _pylibs` 就行 |
+| `_cfg_guard.py` | 测试用便携配置的备份/还原护栏，防止误写真实 `config.json` |
+| `scroll_target.py` | 造一个可滚动窗口，供长图测试用 |
+| `make_build_project.py` | 生成本机用的构建工程副本（`rebuild_all.sh` 第 0 步会调它） |
+| `render_iconfont.py` | 把 `iconfont.ttf` 的字形渲染成对照图（输出到 `ext/build/`），加图标前用来确认码点存在 |
+| `fix_lang_eol.py` | 把语言文件统一成 UTF-16LE + BOM + CRLF |
+| `check_shortcut_logic.py` | 把 `Setting.cpp` 的快捷键表/迁移/冲突逻辑复刻成 Python，先证明语义正确 |
+| `_msvc_env.sh` | 直接调 `cl.exe` 编小工具时的最小环境（不走 MSBuild） |
+

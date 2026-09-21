@@ -14,8 +14,13 @@ Ling 的路径**不用替换**：原工程写的是 `$(SolutionDir)ext\Ling`，�
 import os
 
 # 路径全部从本文件位置推导，不写死任何机器上的绝对路径。
-# 本文件在 <仓库根>/_tools/ 下，所以 .. 就是仓库根
-ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+# 本文件在 <仓库根>/ext/build-support/ 下，所以**往上两级**才是仓库根
+# （ext/build-support → ext → <仓库根>）。
+# ⚠ 它原来放在 <仓库根>/_tools/，那时是一级。2026-09-22 收拢到 ext/build-support/
+#    时改过这里 —— 当时先写成三级，把 ROOT 推到了仓库的父目录，构建直接
+#    FileNotFoundError 找不到 Src/ScreenCapture.vcxproj。数层数要照着实际目录数。
+ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     '..', '..'))
 EXT = os.path.join(ROOT, 'ext')
 SRC = os.path.join(ROOT, 'Src')
 

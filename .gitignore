@@ -26,7 +26,7 @@ enc_temp_folder/
 Src/Res/Resource.aps
 Res.aps
 
-# 本机生成的构建工程（里面有本机绝对路径，用 _tools/make_build_project.py 现场生成）
+# 本机生成的构建工程（里面有本机绝对路径，用 ext/build-support/make_build_project.py 现场生成）
 Src/ScreenCapture.build.vcxproj
 
 # ---- 运行时数据 ----
@@ -44,10 +44,14 @@ config.json
 /_backup_ling_git/
 /_removed_gif/
 
+# _tools 已废弃（2026-09-22）：开发脚本统一收进 ext/build-support/，不再有仓库外的工具目录。
+# 万一哪台机器上还留着旧的 _tools/（里面有本地环境），别再让它进仓库。
+/_tools/
+
 # ---- 开发工具的本地环境 ----
-# Pillow 等测试依赖装在 _tools/.pylibs 里，是本地环境不是源码
-_tools/.pylibs/
-_tools/bench/
+# Pillow 等测试依赖装在 ext/build/.pylibs —— 它落在 ext/build/ 下（整个目录上面已排除），
+# 而且测试脚本通过 ext/build-support/_pylibs.py 显式挂载，不依赖环境里的全局包。
+# 装法：python -m pip install --target ext/build/.pylibs pillow
 __pycache__/
 *.pyc
-_tools/iconfont_glyphs.png
+

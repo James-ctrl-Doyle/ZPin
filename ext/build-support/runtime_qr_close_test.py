@@ -13,6 +13,7 @@
 
 屏幕上没有二维码时（"未识别到"那条路）由 runtime_qr_test.py 负责：那条路应该留在原地。
 """
+import _pylibs  # noqa: F401  —— 把 ext/build/.pylibs（Pillow）挂进 sys.path
 import ctypes
 import os
 import subprocess
