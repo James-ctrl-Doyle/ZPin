@@ -11,7 +11,11 @@ namespace
 	constexpr float titleFont{ 15.f }, textFont{ 13.f };
 	constexpr float gapTitle{ 12.f }, gapBtn{ 18.f };
 	constexpr float btnW{ 88.f }, btnH{ 32.f }, btnGap{ 10.f };
-	constexpr float minW{ 340.f }, maxW{ 520.f };
+	// ⚠ 名字别叫 minW / maxW：WinBase 有同名成员（`float w, h, minW{800}, minH{600}`），
+	// 在本类的成员函数里裸写 minW 会解析成**基类那个成员**而不是这里的常量。
+	// 踩过：clamp(contentW, minW*dpi, maxW*dpi) 实际变成 clamp(x, 800*dpi, 520*dpi)，
+	// 下界比上界还大 → 宽度被钉死在 991.7，弹框一直宽得离谱
+	constexpr float cardMinW{ 340.f }, cardMaxW{ 520.f };
 }
 
 WinConfirm::WinConfirm(Ling::WinBase* owner, const std::wstring& title, const std::wstring& text,
@@ -42,7 +46,7 @@ WinConfirm::WinConfirm(Ling::WinBase* owner, const std::wstring& title, const st
 	const auto textSize = measure(text, textFont);
 
 	float contentW = (std::max)({ titleSize.width, textSize.width, (btnW * 2.f + btnGap) * dpi });
-	contentW = std::clamp(contentW, minW * dpi, maxW * dpi);
+	contentW = std::clamp(contentW, cardMinW * dpi, cardMaxW * dpi);
 	const float contentH = titleSize.height + gapTitle * dpi + textSize.height
 		+ gapBtn * dpi + btnH * dpi;
 	const float w = contentW + padX * 2.f * dpi;

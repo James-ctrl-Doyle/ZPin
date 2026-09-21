@@ -68,6 +68,13 @@ void WinSettingCommon::initAdminCtrls()
         // 没拉起来（用户在 UAC 上点了"否"、或者令牌复制失败）：留在原地，什么都不做
     });
 
+    // 一句说明，与"快速保存"下面那条同一个写法：这个开关到底管什么用
+    auto hint = makeChild<Ling::Label>();
+    hint->setText(Lang::get(L"setting.adminTip"));
+    hint->setHeight(20.f);
+    hint->setFontSize(12.f);
+    hint->setColor(0x888888FF);
+
     auto border = makeChild<Ling::Node>();
     border->setHeight(1.f);
     border->setBg(0xE0E0E0FF);
