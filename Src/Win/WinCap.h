@@ -71,7 +71,9 @@ private:
 	void layout() override;
 	BOOL setCursor() override;
 	LRESULT onHitTest(const POINT pos) override;
-	void setPixPos(POINT pos);
+	// 取景框（放大镜）的位置。preferLeft / preferTop 表示优先摆到光标左侧 / 上方 ——
+	// 拖框过程中用它把取景框推到拖动方向的反侧，免得压住正在调的选区
+	void setPixPos(POINT pos, bool preferLeft = false, bool preferTop = false);
 	void getPixImg(POINT pos);
 	void paintPix(ID2D1DeviceContext* ctx);
 	void onKey(UINT key);
@@ -144,6 +146,9 @@ private:
 	// 单缓冲会让合成器采到"擦干净还没画完"的中间态
 	Ling::Canvas* canvas{ nullptr };
 	POINT pixPos;
+	// 这次拖框的起点（Select 阶段按下的那一点）。拖框中放大镜往背离选区的方向摆，
+	// 靠它判断光标在起点的哪一侧
+	POINT dragStartPos{ 0, 0 };
 	bool isPress{ false }, isClosed{ false }, isMouseTransparent{ false };
 	// onDpiChanged 与 onSizeChanged 之间的接力标记，见构造函数里的注释
 	bool dpiChanged{ false };

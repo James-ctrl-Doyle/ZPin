@@ -239,23 +239,40 @@ BOOL WinCap::setCursor()
     return TRUE;
 }
 
-void WinCap::setPixPos(POINT pos)
+// preferLeft / preferTop：优先把取景框放在光标的左侧 / 上方。
+// 拖框过程中用得上 —— 默认"右下"在往左上拖时会正好压住正在调的选区，
+// 传进拖动方向反侧的偏好，取景框就落在选区外面了。
+// 偏好位置放不下（顶到窗口边）仍然会翻回另一侧，保证它总在屏幕内。
+void WinCap::setPixPos(POINT pos, bool preferLeft, bool preferTop)
 {
     auto span{ 10 * dpi };
-    pixPos.x = int(pos.x + span + dpi);
-    if (pixPos.x + pixW > w) {
-        pixPos.x = int(pos.x - span - pixW + dpi);
-    }
-    pixPos.y = int(pos.y + span + dpi);
     auto pixH{ pixImgH + 76.f * dpi };
-    if (pixPos.y + pixH > h) {
+    if (preferLeft) {
+        pixPos.x = int(pos.x - span - pixW + dpi);
+        if (pixPos.x < 0) pixPos.x = int(pos.x + span + dpi);
+    }
+    else {
+        pixPos.x = int(pos.x + span + dpi);
+        if (pixPos.x + pixW > w) {
+            pixPos.x = int(pos.x - span - pixW + dpi);
+        }
+    }
+    if (preferTop) {
         pixPos.y = int(pos.y - span - pixH + dpi);
+        if (pixPos.y < 0) pixPos.y = int(pos.y + span + dpi);
+    }
+    else {
+        pixPos.y = int(pos.y + span + dpi);
+        if (pixPos.y + pixH > h) {
+            pixPos.y = int(pos.y - span - pixH + dpi);
+        }
     }
 }
 
 void WinCap::getPixImg(POINT pos)
 {
-    if (isPress || stage != CapStage::Select) return;
+    // 拖动中（isPress）也要取像：终点和起点一样要能对准（见 onMove）
+    if (stage != CapStage::Select) return;
     const long sw = static_cast<long>(srcW), sh = static_cast<long>(srcH);
     const long iw = static_cast<long>(w), ih = static_cast<long>(h);
     // 期望的源矩形：以光标为正中心，可以越出屏幕。
@@ -282,7 +299,8 @@ void WinCap::getPixImg(POINT pos)
 
 void WinCap::paintPix(ID2D1DeviceContext* ctx)
 {
-	if (isPress || stage != CapStage::Select) return;
+	// 拖动中也照画（原来按下就收起来，于是"起点能对准、终点看不见"）
+	if (stage != CapStage::Select) return;
     D2D1_RECT_F pixRect{ (float)pixPos.x, (float)pixPos.y, pixPos.x + pixW, pixPos.y + pixImgH + 76.f * dpi };
     ctx->FillRectangle(pixRect, brushBg.Get());
     if (pixSrcRect.right > pixSrcRect.left && pixSrcRect.bottom > pixSrcRect.top) {
@@ -519,7 +537,11 @@ void WinCap::onDown(POINT pos, bool isRight)
     }
     if (stage == CapStage::Select) {
         isPress = true;
+        dragStartPos = pos;
         cutMask->startMakeRect(pos);
+        // 放大镜在拖动过程中一直留着（原来按下就收起来了），按下这一下先刷一次，
+        // 免得要等鼠标动了它才重新出现
+        refresh();
     }
     else if (stage == CapStage::Adjust) {
         // 选了画笔、而且按在选区里：这一下归绘图，不是调整选区
@@ -546,7 +568,12 @@ void WinCap::onMove(POINT pos)
 
     if (stage == CapStage::Select) {
         if (isPress) {
-            cutMask->makeRect(pos);
+            // 拖动过程中放大镜也跟着鼠标走：只对准起点、看不见终点的话，
+            // 相当于每次都得靠感觉收尾。取景框摆在拖动方向的反侧
+            //（光标在起点的右上就摆右上），这样它落在选区外面，不会压住正在调的内容
+            getPixImg(pos);
+            setPixPos(pos, pos.x < dragStartPos.x, pos.y < dragStartPos.y);
+            cutMask->makeRect(pos);   // 内部 refresh，连放大镜一起重画
         }
         else {
             cutMask->highlight(pos);
