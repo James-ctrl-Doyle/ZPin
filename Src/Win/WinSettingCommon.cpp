@@ -53,6 +53,8 @@ void WinSettingCommon::initAdminCtrls()
     btn->onClick.add([this](Ling::Button*) {
         // 二次确认走自绘的 WinConfirm（系统的 MessageBox 跟这个程序的观感不搭）。
         // 它是模态的：开着的时候设置窗口收不到输入，点"确定"才真去重启
+        // 两个方向都带上 --open-setting：管理员模式切换就是一次重启（托盘图标会先消失
+        // 再出现），用户是冲着"改权限"来的，重启完直接把设置页摆回来才接得上
         if (IsUserAnAdmin()) {
             // 退出管理员模式：降权重启（提权进程造不出普通权限的子进程，见 relaunchSelf）
             WinConfirm::showAt(win, Lang::get(L"setting.adminExitTitle"),
@@ -355,6 +357,8 @@ void WinSettingCommon::styleToggle(Ling::Button* btn, bool on, const std::wstrin
 
 // 把自己重新拉起来。新实例带 --wait-pid=<本进程 pid>，等这边退干净再初始化 ——
 // 否则会被 Ling 的单实例检查判成"第二个实例"直接退出，热键也抢不到。
+// 再带一个 --open-setting：管理员模式切换整个程序要重启一遍（托盘图标先消失再出现），
+// 用户是冲着"改权限"来的，重启完把设置页摆回来才接得上（App 那边收到就 WinSetting::init）。
 //   elevate = true ：ShellExecuteW runas，走 UAC 提升
 //   elevate = false：换成**普通权限**的实例。不能直接 CreateProcess —— 提权进程造出来的
 //                    子进程一律继承提权令牌，等于没退出去。正规做法是借已登录的 shell
@@ -365,7 +369,7 @@ bool WinSettingCommon::relaunchSelf(bool elevate)
     wchar_t exePath[MAX_PATH]{};
     GetModuleFileNameW(nullptr, exePath, MAX_PATH);
     wchar_t argBuf[64]{};
-    swprintf_s(argBuf, L"--wait-pid=%lu", GetCurrentProcessId());
+    swprintf_s(argBuf, L"--wait-pid=%lu --open-setting", GetCurrentProcessId());
     if (elevate) {
         return (INT_PTR)ShellExecuteW(nullptr, L"runas", exePath, argBuf, nullptr, SW_SHOWNORMAL) > 32;
     }

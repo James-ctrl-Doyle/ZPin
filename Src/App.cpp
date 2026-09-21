@@ -219,6 +219,13 @@ App::App()
 		g_deviceKeepAlive = new DeviceKeepAlive();
 		g_deviceKeepAlive->createNativeWindow(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP);
 		app->dq.TryEnqueue([]() { Ling::D2D::get(); });
-        Update::checkLater();
+		// --open-setting：刚才是"切换管理员模式"重启过来的（设置页 relaunchSelf 加的参数）。
+		// 重启期间托盘图标会消失一下再回来，不把设置页摆回来的话用户会觉得"重启完就散架了"。
+		// 排在 D2D 预热之后：设置窗口自己会把设备叫起来，先让预热把暗活干完，
+		// 免得两边的首次初始化撞在同一个消息循环里
+		if (app->args[L"--open-setting"] == L"true") {
+			app->dq.TryEnqueue([]() { WinSetting::init(); });
+		}
+		Update::checkLater();
     }
 }
