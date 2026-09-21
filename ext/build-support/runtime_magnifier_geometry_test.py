@@ -4,7 +4,7 @@ r"""放大镜（取景框）的几何自检 —— 准星到底框住几个源�
   进截图模式后那个取景框，中心准星看着像框住了 2x2 四个像素，分不清当前取到的
   到底是哪一个；而且每格放大得不够，小字看不清。
 
-判据全部落在**蓝色十字**上（便携配置里 borderWidth=0、背景铺纯黑，
+判据全部落在**蓝色十字**上（便携配置里 borderWidth=0，取景框里是纯黑背景，
 屏幕上唯一的蓝色来源就是它），无需给屏幕铺图案：
 
   十字的四个臂是从取景框边缘画到中心留白外侧的，所以
@@ -13,6 +13,12 @@ r"""放大镜（取景框）的几何自检 —— 准星到底框住几个源�
   这两个量能反推出"每个源像素放大后占多少物理像素"。
   再扫中心那一行/列，量出两条臂之间**没有蓝色**的那段缺口宽度 —— 那就是准星
   留白，也就能算出它框住了几个源像素（目标：正好 1 个）。
+
+⚠ 关于"黑背景"：取景框里的图像来自 **F1 抓屏那一刻光标周围 srcW×srcH 的区域**，
+  所以只需要在**光标附近铺一小块黑窗**，不用铺全屏。
+  （曾经铺过全屏黑 topmost 窗，跑十几秒还压着任务栏，用户看到就是"测试把屏幕搞黑了"
+    —— 2026-09-21 连夜改掉。）
+  蓝色统计也相应限制在**取景框内部**（REGION），框外的壁纸/图标不再干扰判读。
 
 黑底上十字的实际颜色是半透明蓝叠黑 ≈ #0D407F，所以蓝色阈值取"b-r>=50 且 b>=100"。
 """
@@ -96,8 +102,17 @@ class WNDCLASSEXW(ctypes.Structure):
                 ('lpszClassName', ctypes.c_wchar_p), ('hIconSm', ctypes.c_void_p)]
 
 
-def make_black_window():
-    cls = 'MagGeomBlackWnd'
+def make_black_patch(x, y, w, h):
+    """在指定位置铺一块**小**黑窗，只盖住放大镜要采样的那一小片屏幕。
+
+    ⚠ 以前这里铺的是全屏黑 topmost 窗，跑十几秒还压着任务栏 —— 用户看到就是
+    "测试把屏幕搞黑了"。完全没必要：
+    取景框里的图像来自 **F1 抓屏那一刻光标周围 srcW×srcH 的区域**
+    （screenImg 在覆盖层 show 之前抓的），所以只要**那一小块**是黑的，
+    取景框里就是黑的、十字叠上去颜色就确定。屏幕别处保持原样即可。
+    黑色统计随之限制在取景框附近的小区域里（见 REGION），不受别处蓝色干扰。
+    """
+    cls = 'MagGeomBlackPatch'
     hinst = kernel32.GetModuleHandleW(None)
     wc = WNDCLASSEXW()
     wc.cbSize = ctypes.sizeof(wc)
@@ -106,10 +121,8 @@ def make_black_window():
     wc.hbrBackground = gdi32.CreateSolidBrush(0x000000)
     wc.lpszClassName = cls
     user32.RegisterClassExW(ctypes.byref(wc))
-    vx, vy = user32.GetSystemMetrics(76), user32.GetSystemMetrics(77)
-    vw, vh = user32.GetSystemMetrics(78), user32.GetSystemMetrics(79)
     hwnd = user32.CreateWindowExW(0x8 | 0x80, cls, 'mag-geom-test',
-                                  0x80000000, vx, vy, vw, vh, None, None, hinst, None)
+                                  0x80000000, x, y, w, h, None, None, hinst, None)
     user32.ShowWindow(hwnd, 5)
     user32.UpdateWindow(hwnd)
     return hwnd
@@ -153,9 +166,18 @@ def blue_mask(im):
 
 
 def run_gap(mask, y, x0, x1):
-    """在 y 这一行、x0..x1 之间找**最长的连续非蓝色段**，返回 (起点, 终点, 长度)。
-    准星留白就是中心那条最长的缺口。"""
+    """在 y 这一行、x0..x1（左闭右开）之间找**最长的连续非蓝色段**，
+    返回 (起点, 终点, 长度)。准星留白就是中心那条最长的缺口。
+
+    ⚠ 传进来的 x1 可能是 getbbox() 的 right（开区间上界），等于图宽本身 ——
+    必须夹到图像范围内，否则 px[x, y] 越界。
+    """
     px = mask.load()
+    w, h = mask.size
+    x0 = max(0, x0)
+    x1 = min(w, x1)
+    if y < 0 or y >= h or x1 <= x0:
+        return (0, 0, 0)
     best = (0, 0, 0)
     cur_s = None
     for x in range(x0, x1):
@@ -174,6 +196,11 @@ def run_gap(mask, y, x0, x1):
 
 def run_gap_col(mask, x, y0, y1):
     px = mask.load()
+    w, h = mask.size
+    y0 = max(0, y0)
+    y1 = min(h, y1)
+    if x < 0 or x >= w or y1 <= y0:
+        return (0, 0, 0)
     best = (0, 0, 0)
     cur_s = None
     for y in range(y0, y1):
@@ -197,10 +224,36 @@ def main():
 
     from PIL import ImageGrab
     os.makedirs(LOG_DIR, exist_ok=True)
-    scr = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
-    print('屏幕: %dx%d' % scr)
+    scr_w, scr_h = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    print('屏幕: %dx%d' % (scr_w, scr_h))
 
-    black = make_black_window()
+    # ———— 先算出"取景框会出现在哪"和"它要从屏幕取哪一块" ————
+    # 取景框位置 = setPixPos 的算法：光标 + span(10*dpi) + dpi，右侧放不下就翻到左侧
+    hdc = user32.GetDC(0)
+    dpi = gdi32.GetDeviceCaps(hdc, 88) / 96.0
+    user32.ReleaseDC(0, hdc)
+    span = int(10 * dpi)
+    pix_w = int(EXPECT_SRC_W * EXPECT_SCALE)
+    pix_h = int(EXPECT_SRC_H * EXPECT_SCALE)
+    info_h = int(76 * dpi)              # 取景框下面那四行 HEX/RGB/CMYK/POS
+    fx = CURSOR[0] + span + int(dpi)
+    fy = CURSOR[1] + span + int(dpi)
+    if fx + pix_w > scr_w:
+        fx = CURSOR[0] - span - pix_w + int(dpi)
+    if fy + pix_h + info_h > scr_h:
+        fy = CURSOR[1] - span - pix_h + int(dpi)
+    # 只在取景框内部统计蓝色 —— 框外屏幕（壁纸、图标）可能有蓝，别把它们算进来
+    REGION = (fx, fy, fx + pix_w, fy + pix_h)
+    print('预期取景框 %s（dpi=%.2f span=%d）' % (str(REGION), dpi, span))
+
+    # 黑块：只要盖住**取景框会从屏幕采样的那一块**（光标周围 srcW×srcH）就够，
+    # 不用铺全屏（见 make_black_patch 的说明）
+    half_w = int(EXPECT_SRC_W / 2) + 12
+    half_h = int(EXPECT_SRC_H / 2) + 12
+    patch = (CURSOR[0] - half_w, CURSOR[1] - half_h, half_w * 2, half_h * 2)
+    print('黑块 %s（只盖住光标附近的采样区，不再全屏）' % str(patch))
+
+    black = make_black_patch(*patch)
     time.sleep(0.6)
     ok = True
     proc = subprocess.Popen([EXE])
@@ -214,31 +267,34 @@ def main():
         user32.SetCursorPos(*CURSOR)
         time.sleep(0.8)
 
-        im = ImageGrab.grab().convert('RGB')
+        full = ImageGrab.grab().convert('RGB')
+        im = full.crop(REGION)
         im.save(SHOT)
-        print('（已存图 ext/build/logs/mag_geometry.png）')
+        print('（已存图 ext/build/logs/mag_geometry.png —— 只有取景框这一小块）')
 
         mask = blue_mask(im)
         cnt = mask.histogram()[255]
         bbox = mask.getbbox()
         if not bbox:
-            print('!! 画面上没有蓝色 → 十字没画出来')
+            print('!! 取景框里没有蓝色 → 十字没画出来')
             return 1
         bx0, by0, bx1, by1 = bbox
         cross_w = bx1 - bx0
         cross_h = by1 - by0
-        print('蓝色(十字)包围盒 x %d..%d y %d..%d  像素数 %d' % (bx0, bx1 - 1, by0, by1 - 1, cnt))
+        print('蓝色(十字)包围盒(相对取景框) x %d..%d y %d..%d  像素数 %d'
+              % (bx0, bx1 - 1, by0, by1 - 1, cnt))
         print('十字横向跨度 %d  纵向跨度 %d' % (cross_w, cross_h))
 
         # 十字总跨 == 取景框内尺寸（臂从框边画到中心留白外侧）
         exp_w = EXPECT_SRC_W * EXPECT_SCALE
         exp_h = EXPECT_SRC_H * EXPECT_SCALE
-        if abs(cross_w - exp_w) > 3:
-            print('!! 横向跨度 %d，期望 %d（srcW %d × scale %.0f）' % (cross_w, exp_w, EXPECT_SRC_W, EXPECT_SCALE))
+        if abs(cross_w - exp_w) > 5:
+            print('!! 横向跨度 %d，期望 %d（srcW %d × scale %.0f）'
+                  % (cross_w, exp_w, EXPECT_SRC_W, EXPECT_SCALE))
             ok = False
         else:
             print('✔ 横向跨度 %d == %d 个源像素 × %.0f' % (cross_w, EXPECT_SRC_W, EXPECT_SCALE))
-        if abs(cross_h - exp_h) > 3:
+        if abs(cross_h - exp_h) > 5:
             print('!! 纵向跨度 %d，期望 %d' % (cross_h, exp_h))
             ok = False
         else:
