@@ -23,6 +23,12 @@ import sys
 import time
 from ctypes import wintypes
 
+# Pillow 装在工作区的隔离目录（_tools/.pylibs），得显式挂上 PYTHONPATH 才 import 得到
+_HERE0 = os.path.dirname(os.path.abspath(__file__))
+_PYLIBS = os.path.normpath(os.path.join(_HERE0, '..', '..', '_tools', '.pylibs'))
+if os.path.isdir(_PYLIBS) and _PYLIBS not in sys.path:
+    sys.path.insert(0, _PYLIBS)
+
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 except Exception:
@@ -43,9 +49,13 @@ _cfg_guard.install(PORTABLE_CFG)
 
 LOG_DIR = os.path.join(_BUILD, 'logs')
 
-# 拖框的起点与终点（屏幕坐标）。取屏幕靠上的位置，保证放大镜（约 250x245）不会溢出屏幕
-P1 = (300, 300)
-P2 = (900, 700)
+# 拖框的起点与终点（屏幕坐标）。要点：**两侧都要留得下取景框**。
+# 取景框尺寸 = srcW×srcH × scaleNum（WinCap.cpp 顶部那组常量），scaleNum 一改
+# 就得重新核这两个点 —— 否则光标贴边时 setPixPos 会按既有逻辑把框翻到另一侧，
+# "避让方向"那条断言就会误报（放大镜从 250 宽变 400 宽后就撞过一次：
+# 终点 (300,300) 左侧只剩 300px，装不下 400 的框，框翻到了右边）
+P1 = (600, 450)
+P2 = (1100, 800)
 
 WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, wintypes.HWND, ctypes.c_uint,
                              ctypes.c_ulonglong, ctypes.c_longlong)

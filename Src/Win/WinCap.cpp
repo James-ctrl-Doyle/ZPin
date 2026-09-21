@@ -20,7 +20,10 @@ using namespace Microsoft::WRL;
 
 namespace
 {
-    constexpr float scaleNum{ 5.f }, srcW{ 50.f }, srcH{ 30.f };
+    // 放大镜（取景框）：取光标周围 srcW×srcH 个屏幕像素，每个放大 scaleNum 倍画出来。
+    // scaleNum 是**物理像素**倍率（不乘 dpi）—— 源像素本来就是物理像素，倍率再跟 dpi
+    // 挂钩反而会让不同缩放的屏幕上"一格"大小不一。
+    constexpr float scaleNum{ 8.f }, srcW{ 50.f }, srcH{ 30.f };
     constexpr float pixImgH{ scaleNum * srcH };
     constexpr float pixW{ srcW * scaleNum };
     // 原地提示的定时器 id 与显示时长（2 秒）。18 / 19 是 CapLong 的滚动定时器、100 是绘图夹点，
@@ -314,7 +317,12 @@ void WinCap::paintPix(ID2D1DeviceContext* ctx)
     }
     ctx->DrawRectangle(pixRect, brushBg.Get(),dpi);
 
-    float crossWHalf{ 4.f*dpi };
+    // 十字的臂半宽。中心留白 = 2×crossWHalf，要它**正好等于一个源像素放大后的大小**
+    // （也就是 scaleNum），这样准星框住的就是光标下那一个像素。
+    // ⚠ 原来写的是 4*dpi（≈4.96），而那时 scaleNum=5 —— 留白 ≈9.9px 能塞下两个源像素，
+    //    于是准星实际框住 2×2=4 个像素，看颜色/对边界时根本分不清取的是哪一个。
+    //    这个量必须跟着 scaleNum 走，不能乘 dpi
+    const float crossWHalf{ scaleNum * 0.5f };
     auto crossRect0 = D2D1::RectF(pixPos.x, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x+pixW / 2 - crossWHalf, pixPos.y + pixImgH / 2 + crossWHalf);
     auto crossRect1 = D2D1::RectF(pixPos.x + pixW / 2 + crossWHalf, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x + pixW, pixPos.y + pixImgH / 2 + crossWHalf);
     auto crossRect2 = D2D1::RectF(pixPos.x + pixW / 2 - crossWHalf, pixPos.y, pixPos.x + pixW / 2 + crossWHalf, pixPos.y + pixImgH / 2 - crossWHalf);
