@@ -67,4 +67,8 @@
   把工具条夹到屏幕左上角。两处都补齐（与 `layoutTools()` 一致）。
 - 按 `,` 翻出去之后按 `.` 回不到「这次截图本身」；翻页后工具条停在上一张选区的位置（要等鼠标移动才跟过去）。
 - 截图标注的删除操作原先会误删第一个图形。
+- **LICENSE 的版权主体写错了**：上游换协议时把 ThorVG 项目的 MIT 模板整份抄了过来、版权行忘了改，
+  于是许可证里写着「Copyright (c) 2020 - 2026 ThorVG Project」—— 而本项目与 ThorVG 没有任何关系
+  （源码、工程文件、exe 里都没有它的引用）。已改成本项目真正的版权人：
+  `Copyright (c) 2022 - 2026 LiuXiaoLun (xland)` + `Copyright (c) 2026 James-ctrl-Doyle`。
 - `Lang::getSupportedLang()` 会把内置语言与 `Lang` 目录里的文件重复列出（语言菜单出现两条"简体中文"）。
