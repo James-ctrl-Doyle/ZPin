@@ -128,3 +128,27 @@ grep -cE "\.cpp$|\.c$" "$LOGS/screencapture.log" | tee -a "$SUMMARY"
 log ""
 log "--- 产物 ---"
 ls -l "$EXT/build/bin/x64/Release/" 2>/dev/null | tee -a "$SUMMARY"
+
+# ---- 顺手备一份带版本号的发布件 ----
+# 内部产物名保持 ScreenCapture.build.exe 不变：三十来个测试脚本都按这个名字找它，
+# config.json / temp 也在那个目录里，改名会把整套回归打挂。
+# 对外发布用的是另一份 ScreenCapture_<版本>.exe，版本号从 exe 自己的 VERSIONINFO 读
+# （唯一真源是 Src/Res/Resource.rc，不另外维护一处版本号）。
+# 真要发到 GitHub Releases 走 release.sh，它直接拿这个文件。
+REL_EXE="$EXT/build/bin/x64/Release/ScreenCapture.build.exe"
+if [ -f "$REL_EXE" ]; then
+    VER_FULL="$(powershell -NoProfile -Command \
+        "(Get-Item '$(winpath "$REL_EXE")').VersionInfo.FileVersion" 2>/dev/null | tr -d '\r\n')"
+    VER="$(printf '%s' "$VER_FULL" | cut -d. -f1-3)"
+    if [ -n "$VER" ]; then
+        REL_DIR="$EXT/build/release"
+        mkdir -p "$REL_DIR"
+        cp -f "$REL_EXE" "$REL_DIR/ScreenCapture_$VER.exe"
+        log ""
+        log "--- 发布件（v$VER）---"
+        ls -l "$REL_DIR/ScreenCapture_$VER.exe" | tee -a "$SUMMARY"
+        log "发到 GitHub Releases：bash ext/build-support/release.sh"
+    else
+        log "!! 读不到 exe 的版本资源，跳过发布件"
+    fi
+fi

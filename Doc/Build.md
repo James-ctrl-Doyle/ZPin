@@ -100,7 +100,8 @@ Ling 原本是独立仓库（[xland/Ling](https://github.com/xland/Ling)）。�
 
 | 脚本 | 说明 |
 |---|---|
-| `rebuild_all.sh` | 完整重编（yoga → Ling → ScreenCapture） |
+| `rebuild_all.sh` | 完整重编（yoga → Ling → ScreenCapture）。构建成功后会另外备一份带版本号的发布件到 `ext/build/release/ScreenCapture_<版本>.exe` |
+| `release.sh` | 把发布件发到 GitHub Releases（打 tag + 建 release + 传 exe）。`--dry-run` 只做本地准备。见下 |
 | `runtime_*_test.py` | 运行时回归测试（截图、绘图、长图、录屏、二维码、快捷键、历史回溯、设置页、放大镜…）。需要先编出 exe，并用 exe 同目录的 `config.json` 做便携配置；脚本会备份/还原你真实的配置 |
 | `_pylibs.py` | 把 `ext/build/.pylibs`（Pillow）挂进 `sys.path`。每个要 `import PIL` 的测试脚本在开头 `import _pylibs` 就行 |
 | `_cfg_guard.py` | 测试用便携配置的备份/还原护栏，防止误写真实 `config.json` |
@@ -110,4 +111,24 @@ Ling 原本是独立仓库（[xland/Ling](https://github.com/xland/Ling)）。�
 | `fix_lang_eol.py` | 把语言文件统一成 UTF-16LE + BOM + CRLF |
 | `check_shortcut_logic.py` | 把 `Setting.cpp` 的快捷键表/迁移/冲突逻辑复刻成 Python，先证明语义正确 |
 | `_msvc_env.sh` | 直接调 `cl.exe` 编小工具时的最小环境（不走 MSBuild） |
+
+## 发布
+
+```bash
+bash ext/build-support/rebuild_all.sh    # 1. 编出 exe（同时备好带版本号的发布件）
+bash ext/build-support/release.sh        # 2. 发到 GitHub Releases
+```
+
+`release.sh` 会：从 **exe 自己的版本资源**读版本号（不另外维护一处版本号）→ 复制成
+`ext/build/release/ScreenCapture_<版本>.exe` → 从 `CHANGELOG.md` 抽该版本段落当 release 说明
+→ 打 tag `v<版本>` 并推送 → 建 release 并把 exe 传上去。
+
+- 发之前**工作区必须干净**（发布件要对得上一个确定的提交），否则直接拒绝。
+- 先看要发什么、不碰 GitHub：`bash ext/build-support/release.sh --dry-run`
+- 仓库地址从 `git remote` 取，凭据走 `git credential fill`（不落地任何文件）。
+- 版本号唯一真源是 `Src/Res/Resource.rc` 的 `VERSIONINFO`。其中 `FILEVERSION` /
+  `PRODUCTVERSION` 是 Windows 定点数格式**必须四段**（`2,6,0,0`），而 `StringFileInfo` 里
+  的 `FileVersion` / `ProductVersion` 是给人看的字符串，写 `2.6.0` 即可 —— 写四段的话
+  资源管理器里会多出一个尾巴。**改版本要同时改这四处。**
+
 

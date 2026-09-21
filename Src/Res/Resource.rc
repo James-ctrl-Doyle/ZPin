@@ -7,6 +7,11 @@ zh-CN RCDATA "../../Lang/简体中文.zh-CN.json"
 en-US RCDATA "../../Lang/English.en-US.json"
 
 // 配置可执行文件产品信息
+// ⚠ FILEVERSION / PRODUCTVERSION 是 Windows 的定点数格式，**必须是四段**（2,6,0,0），
+//    少一段编译器会报错；但下面 StringFileInfo 里那两条是给人看的字符串，
+//    写 "2.6.0" 就行 —— 资源管理器、PowerShell 的 VersionInfo 读的是字符串，
+//    写成 "2.6.0.0" 界面上就会多出一个尾巴。
+//    版本号唯一真源就是这里，改版本要同时改这四处。
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION 2,6,0,0
 PRODUCTVERSION 2,6,0,0
@@ -26,12 +31,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "James-ctrl-Doyle"
             VALUE "FileDescription", "ScreenCapture"
-            VALUE "FileVersion", "2.6.0.0"
+            VALUE "FileVersion", "2.6.0"
             VALUE "InternalName", "ScreenCapture.exe"
             VALUE "LegalCopyright", "Copyright (C) LiuXiaoLun 2023-2026, James-ctrl-Doyle 2026"
             VALUE "OriginalFilename", "ScreenCapture.exe"
             VALUE "ProductName", "ScreenCapture"
-            VALUE "ProductVersion", "2.6.0.0"
+            VALUE "ProductVersion", "2.6.0"
         END
     END
     BLOCK "VarFileInfo"
