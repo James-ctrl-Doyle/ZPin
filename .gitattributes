@@ -20,3 +20,17 @@
 *.bin   binary
 *.obj   binary
 *.ilk   binary
+
+# ———— GitHub 语言统计 ————
+# 下面两个目录是**本 fork 自己加的开发期资产**（端到端回归测试 + 构建辅助），
+# 不是产品代码：上游 xland/ScreenCapture 一行 Python 都没有，而这个 fork 为了测
+# "放大镜准星精确到像素""弹框宽度""DPI 缩放"这类细活，写了二十多个 Python 测试
+# （Windows 上驱动原生 GUI，Python + ctypes 最省事）。
+# 如果照常统计，仓库首页的语言条会显示约 18% Python，让人以为这是半个 Python 项目。
+# linguist-detectable=false 让 GitHub 不计入语言统计 —— **文件本身照旧留在仓库里**，
+# clone/编译/跑测试都不受影响，只是不参与语言占比。
+#
+# 注意：这**不会**改本地任何统计（git ls-files / wc -l 该是多少还是多少），
+# 只影响 GitHub 首页那条语言条。
+ext/build-support/**  linguist-detectable=false
+_tools/**             linguist-detectable=false
