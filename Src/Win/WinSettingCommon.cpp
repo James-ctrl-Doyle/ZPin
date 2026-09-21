@@ -5,7 +5,6 @@
 #include "WinSetting.h"
 #include "WinSettingCommon.h"
 #include <shellapi.h>   // IsUserAnAdmin / ShellExecuteW（管理员检测与重启）
-#include <thread>       // 重启确认后延迟退出自己的那个计时线程
 
 WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
 {    
@@ -64,16 +63,16 @@ void WinSettingCommon::initAdminCtrls()
         btn->onClick.add([this](Ling::Button*) {
             wchar_t exePath[MAX_PATH];
             GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-            // runas 触发 UAC：确认后新实例以管理员起来（托盘待命），本实例延迟退出。
-            // 延迟留给新实例起托盘的工夫，避免两边图标同时闪；退出必须回 UI 线程
-            //（quit 是 PostQuitMessage），所以用 dq 投递而不是直接调
-            if ((INT_PTR)ShellExecuteW(nullptr, L"runas", exePath, nullptr, nullptr, SW_SHOWNORMAL) > 32) {
-                std::thread([]() {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(800));
-                    Ling::App::get()->dq.TryEnqueue([]() { Ling::App::get()->quit(0); });
-                }).detach();
+            // runas 触发提升（本机 UAC 是"静默提升"，不弹确认框）。把本进程 pid 传给新实例，
+            // 让它等我们**退出后**再初始化 —— 顺序反过来的话，新实例注册 F1 时我们还占着
+            // 热键，注册会静默失败；而且 Ling 的单实例检查也会直接把新实例踢掉。
+            // 拉起成功就立刻退出自己，剩下的交给新实例
+            wchar_t argBuf[64];
+            swprintf_s(argBuf, L"--wait-pid=%lu", GetCurrentProcessId());
+            if ((INT_PTR)ShellExecuteW(nullptr, L"runas", exePath, argBuf, nullptr, SW_SHOWNORMAL) > 32) {
+                Ling::App::get()->quit(0);
             }
-            // 用户在 UAC 上点了"否"：什么都不做，留在原地
+            // 用户拒绝提升（或提升失败）：什么都不做，留在原地
         });
     }
 

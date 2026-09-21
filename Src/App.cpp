@@ -143,10 +143,23 @@ App::App()
     if (app->args[L"--auto-quit"] == L"true") {
         WinCap::init();
     }
-    else {
-        bool flag = app->refuseSecondInstance();
-        if (flag) return;
-        Tray::init();
+      else {
+          // 以管理员重启（设置页那个按钮）时，新实例带着 --wait-pid=<旧实例 pid> 起来：
+          // 先等旧实例**真正退出**再往下走。必须等在两处之前 ——
+          //   1. refuseSecondInstance()：旧实例还活着的话，新实例会被判成"第二实例"直接退出；
+          //   2. Tray::init() 里的热键注册：旧实例还占着 F1，新实例注册会静默失败，
+          //      重启完热键就不好使了。
+          // 旧实例那边是"发起重启后立刻退出"，所以这里最多等两三秒
+          auto waitPid = app->args[L"--wait-pid"];
+          if (!waitPid.empty()) {
+              if (HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)_wtoi(waitPid.data()))) {
+                  WaitForSingleObject(h, 8000);
+                  CloseHandle(h);
+              }
+          }
+          bool flag = app->refuseSecondInstance();
+          if (flag) return;
+          Tray::init();
 		// 启动后只挂个托盘图标待命，**不自动进截图模式** —— 用户按 F1 才截。
 		// 开机自启、--enter=tray（升级完重启新版本走的就是它）也走同一条路：
 		// 这条路上一个窗口都不建，图形设备也就根本不会创建

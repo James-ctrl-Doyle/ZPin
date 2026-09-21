@@ -184,6 +184,11 @@ def main():
     tx, ty, tw, th = [int(v) for v in line.split()[1:]]
     print('目标窗口客户区 = (%d,%d) %dx%d，内容高 %d' % (tx, ty, tw, th, CONTENT_H))
 
+    # 先把保存目录清空：里面可能还躺着上一次跑出来的 png，轮询会取到旧文件、验出错结果
+    import shutil as _sh
+    _sh.rmtree(SAVE_DIR, ignore_errors=True)
+    os.makedirs(SAVE_DIR, exist_ok=True)
+
     with open(PORTABLE_CFG, 'w', encoding='utf-16') as f:
         f.write('{"common":{"autoStart":false,"language":"zh-CN","quickSave":true,'
                 '"saveDir":"%s"},"shortcutKey":{"cap":"F1","pin":"F3"}}'
