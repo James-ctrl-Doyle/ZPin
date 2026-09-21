@@ -1,13 +1,18 @@
-r"""设置页（通用设置）布局自检 —— 管理员模式那一行下新增了第二句提示，确认没撑破。
+r"""设置页（通用设置）布局自检 —— 整页各行加起来不能撑破可用高度。
 
-WinSettingCommon 里"管理员模式"这一块现在是：
-    行（39）+ 提示一 setting.adminTip（20）+ 提示二 setting.adminRestartTip（20）+ 分隔线（1）
-比原来多了一行 20px。窗口高 560、内容区 padding 上 40 + 下 20，整页各行加起来
-不能超过可用高度，否则最后一行会被裁掉或者压到关闭按钮底下。
+窗口高 560、内容区 padding 上 40 + 下 20，各行累加超过可用高度的话，
+最后一行会被裁掉或者压到关闭按钮底下。
 
-做法：开设置页 → 把这块内容整段截图存下来（人眼可复核）→ 再用
-GetWindowRect 断言窗口尺寸仍是 680x560 且最后一行（管理员模式行 + 两句提示）
-都落在可视区域内。
+做法：开设置页 → 截图存下来（人眼可复核）→ 再用 GetWindowRect 断言窗口尺寸仍是
+680x560，并按下面的 ROWS 表核对最后一行的位置落在可视区域内。
+
+⚠ 2026-09-22 两处更新：
+  1. 行序改了 —— 管理员模式从最后一行挪到"开机自启"下面（其余依次下移）。
+     ⚠ **显示顺序由 WinSettingCommon 构造函数的调用顺序决定**，不是 init*Ctrls
+       的定义顺序；改那边就要同步这里的 ROWS 表和 ROW_Y 那几个常量。
+  2. 管理员那块只剩一句提示了 —— setting.adminRestartTip 那行早先已删掉
+     （用户嫌提示文案堆太多），ROWS 表里还留着它，会把总高度多算 20px（偏保守，
+     所以一直没暴露）。现在按实际的一句算。
 """
 import ctypes
 import os
@@ -45,12 +50,15 @@ MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
 HWND_MESSAGE = -3
 
-# 整页各行高度累加（逻辑像素）：内容区从 y=40 开始，每行 39 + 分隔线 1
-ROWS = [('autoStart', 39), ('autoStartBorder', 1), ('lang', 39), ('langBorder', 1),
-        ('border', 39), ('borderBorder', 1), ('saveDir', 39), ('saveDirBorder', 1),
+# 整页各行高度累加（逻辑像素）：内容区从 y=40 开始，每行 39 + 分隔线 1；
+# 带提示的行再 +20。顺序必须跟 WinSettingCommon 构造函数的调用顺序一致。
+ROWS = [('autoStart', 39), ('autoStartBorder', 1),
+        ('admin', 39), ('adminTip', 20), ('adminBorder', 1),
+        ('lang', 39), ('langBorder', 1),
+        ('border', 39), ('borderBorder', 1),
+        ('saveDir', 39), ('saveDirBorder', 1),
         ('quickSave', 39), ('quickSaveTip', 20), ('quickSaveBorder', 1),
-        ('history', 39), ('historyBorder', 1),
-        ('admin', 39), ('adminTip', 20), ('adminRestartTip', 20), ('adminBorder', 1)]
+        ('history', 39), ('historyBorder', 1)]
 
 EnumProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 MARGIN_L, MARGIN_T, MARGIN_R, MARGIN_B = 20.0, 40.0, 20.0, 20.0

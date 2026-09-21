@@ -8,13 +8,16 @@
 #include <shellapi.h>   // IsUserAnAdmin / ShellExecuteW（管理员检测与重启）
 
 WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
-{    
-      initAutoStartCtrls();
-      initLangCtrls();
-      initBorderCtrl();
-      initSaveCtrls();
-      initHistoryCtrl();
-      initAdminCtrls();
+{
+    // ⚠ 设置项的**显示顺序由这里的调用顺序决定**（每一项内部是 makeChild 加进去的），
+    //    跟下面那些 init*Ctrls 函数的**定义顺序无关** —— 别靠挪函数定义来调顺序，没用。
+    //    当前顺序：开机自启 → 管理员模式 → 语言 → 边框 → 保存目录 → 快速保存 → 历史保留
+    initAutoStartCtrls();
+    initAdminCtrls();
+    initLangCtrls();
+    initBorderCtrl();
+    initSaveCtrls();
+    initHistoryCtrl();
     auto weakThis = getWeakThis();
     // 这个回调一直挂在窗口上，而本节点可能在窗口关闭之前就被菜单切换换掉了，
     // 所以先确认自己还活着再去碰成员
@@ -29,6 +32,9 @@ WinSettingCommon::~WinSettingCommon()
     win->onMouseDown.remove(onMouseDownToken);
 }
 
+// ⚠ 下面这些 init*Ctrls 的**定义顺序不代表显示顺序** —— 显示顺序由构造函数里
+//    的调用顺序决定（每一项内部是 makeChild 加进父节点的）。要调顺序改构造函数，
+//    挪这里的函数定义没用。
 void WinSettingCommon::initAdminCtrls()
 {
     auto box = makeChild<Ling::Node>();

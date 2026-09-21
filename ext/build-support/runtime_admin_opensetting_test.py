@@ -59,7 +59,8 @@ MOUSEEVENTF_LEFTUP = 0x0004
 HWND_MESSAGE = -3
 
 BTN_X = 570.0        # 按钮列中心（逻辑 x）：160 菜单 + 520 内容 - 20 右内边距 - 90 半按钮宽
-ADMIN_ROW_Y = 319.5  # "管理员模式"那一行的中心（逻辑 y）
+# 2026-09-22：管理员模式从最后一行挪到"开机自启"下面（第 2 项），行中心 99.5
+ADMIN_ROW_Y = 99.5   # "管理员模式"那一行的中心（逻辑 y）
 
 EnumProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 

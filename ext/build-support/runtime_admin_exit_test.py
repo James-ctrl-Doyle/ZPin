@@ -53,7 +53,9 @@ MOUSEEVENTF_LEFTUP = 0x0004
 HWND_MESSAGE = -3
 
 BTN_X = 570.0
-ADMIN_ROW_Y = 319.5
+# 2026-09-22：管理员模式从最后一行挪到"开机自启"下面（第 2 项），行中心 99.5
+# （内容区从 y=40 起：开机自启 39+1=40，接着管理员行 39 → 中心 80+19.5）
+ADMIN_ROW_Y = 99.5
 
 EnumProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
