@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"
+     viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="p-clip">
+      <rect x="0" y="0" width="1024" height="1024" rx="208" ry="208"/>
+    </clipPath>
+    <linearGradient id="p-red" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF8B85"/><stop offset="1" stop-color="#F2635D"/>
+    </linearGradient>
+    <linearGradient id="p-blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7DBAFF"/><stop offset="1" stop-color="#4C91ED"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#p-clip)">
+    <rect x="0" y="0" width="512" height="1024" fill="url(#p-red)"/>
+    <rect x="512" y="0" width="512" height="1024" fill="url(#p-blue)"/>
+  </g>
+
+  <path d="M322 302 H702 L322 722 H702" fill="none" stroke="#FFFFFF" stroke-width="126"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
