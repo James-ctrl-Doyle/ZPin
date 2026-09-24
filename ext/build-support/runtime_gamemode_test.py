@@ -70,45 +70,87 @@ def write_cfg(game_mode):
 
 
 # ———— 造一个"铺满屏幕的无边框窗口"，模拟全屏游戏 ————
-WNDCLASSEXW_FIELDS = [
-    ('cbSize', wintypes.UINT), ('style', wintypes.UINT), ('lpfnWndProc', ctypes.c_void_p),
-    ('cbClsExtra', ctypes.c_int), ('cbWndExtra', ctypes.c_int), ('hInstance', wintypes.HINSTANCE),
-    ('hIcon', wintypes.HICON), ('hCursor', wintypes.HANDLE), ('hbrBackground', wintypes.HBRUSH),
-    ('lpszMenuName', wintypes.LPCWSTR), ('lpszClassName', wintypes.LPCWSTR),
-    ('hIconSm', wintypes.HICON),
-]
-
-
-class WNDCLASSEXW(ctypes.Structure):
-    _fields_ = WNDCLASSEXW_FIELDS
-
-
+# ⚠ 抄 scroll_target.py 的写法，两处不能改：
+#   1. lpfnWndProc 字段必须是 WNDPROC 类型（不能是 c_void_p + cast）——
+#      用 c_void_p 会**丢掉回调签名**，ctypes 于是按默认 c_int 解析参数，
+#      64 位的 LPARAM 立刻 "OverflowError: int too long to convert"，
+#      而且它只在回调被调用时以 "Exception ignored" 的形式刷屏报出来；
+#   2. 必须在调用前给 user32 的函数声明 argtypes/restype，否则 64 位句柄会被截断。
 WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, wintypes.HWND, wintypes.UINT,
                              wintypes.WPARAM, wintypes.LPARAM)
 
+
+class WNDCLASSEXW(ctypes.Structure):
+    _fields_ = [
+        ('cbSize', wintypes.UINT),
+        ('style', wintypes.UINT),
+        ('lpfnWndProc', WNDPROC),
+        ('cbClsExtra', ctypes.c_int),
+        ('cbWndExtra', ctypes.c_int),
+        ('hInstance', wintypes.HINSTANCE),
+        ('hIcon', wintypes.HANDLE),
+        ('hCursor', wintypes.HANDLE),
+        ('hbrBackground', wintypes.HANDLE),
+        ('lpszMenuName', wintypes.LPCWSTR),
+        ('lpszClassName', wintypes.LPCWSTR),
+        ('hIconSm', wintypes.HANDLE),
+    ]
+
+
 WS_POPUP, WS_VISIBLE = 0x80000000, 0x10000000
 WS_EX_TOPMOST = 0x00000008
-_proc_ref = None       # 保住回调，别被 GC 掉
+ERROR_CLASS_ALREADY_EXISTS = 1410
+CLS_NAME = 'ZPinGameModeTestWnd'
+
+u.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+u.DefWindowProcW.restype = ctypes.c_longlong
+u.RegisterClassExW.argtypes = [ctypes.POINTER(WNDCLASSEXW)]
+u.RegisterClassExW.restype = ctypes.c_ushort      # ATOM
+k32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+k32.GetModuleHandleW.restype = wintypes.HINSTANCE
+u.GetSystemMetrics.argtypes = [ctypes.c_int]
+u.GetSystemMetrics.restype = ctypes.c_int
+# ⚠ 句柄类参数必须逐个列 argtypes：不声明的话 ctypes 按 c_int 传，
+#   64 位的 hInstance/HWND 立刻 "OverflowError: int too long to convert"
+u.CreateWindowExW.argtypes = [
+    wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+    ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+    wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+u.CreateWindowExW.restype = wintypes.HWND
+u.SetWindowPos.argtypes = [wintypes.HWND, ctypes.c_ssize_t, ctypes.c_int, ctypes.c_int,
+                           ctypes.c_int, ctypes.c_int, wintypes.UINT]
+u.SetWindowPos.restype = wintypes.BOOL
+u.SetForegroundWindow.argtypes = [wintypes.HWND]
+u.SetForegroundWindow.restype = wintypes.BOOL
+u.BringWindowToTop.argtypes = [wintypes.HWND]
+u.BringWindowToTop.restype = wintypes.BOOL
+u.DestroyWindow.argtypes = [wintypes.HWND]
+u.DestroyWindow.restype = wintypes.BOOL
+wndproc = WNDPROC(lambda h, m, w, l: u.DefWindowProcW(h, m, w, l))
+_cls_registered = False
 
 
 def make_fullscreen_window(title):
     """铺满主显示器、无边框、置顶 + 抢到前台。返回 hwnd。"""
-    global _proc_ref
-    _proc_ref = WNDPROC(lambda h, m, w, l: u.DefWindowProcW(h, m, w, l))
-
-    cls_name = 'ZPinGameModeTestWnd'
-    wc = WNDCLASSEXW()
-    wc.cbSize = ctypes.sizeof(WNDCLASSEXW)
-    wc.lpfnWndProc = ctypes.cast(_proc_ref, ctypes.c_void_p)
-    wc.hInstance = k32.GetModuleHandleW(None)
-    wc.lpszClassName = cls_name
-    if not u.RegisterClassExW(ctypes.byref(wc)):
-        raise OSError('RegisterClassExW 失败: %d' % ctypes.get_last_error())
+    global _cls_registered
+    if not _cls_registered:
+        wc = WNDCLASSEXW()
+        wc.cbSize = ctypes.sizeof(WNDCLASSEXW)
+        wc.lpfnWndProc = wndproc
+        wc.hInstance = k32.GetModuleHandleW(None)
+        wc.lpszClassName = CLS_NAME
+        if not u.RegisterClassExW(ctypes.byref(wc)):
+            # 同一个类只能注册一次；脚本里会建两次窗口（B 段和 C 段），
+            # 第二次撞上"类已存在"是正常的，忽略即可 —— 别的错误码才是真失败
+            err = ctypes.get_last_error()
+            if err != ERROR_CLASS_ALREADY_EXISTS:
+                raise OSError('RegisterClassExW 失败: %d' % err)
+        _cls_registered = True
 
     sw, sh = u.GetSystemMetrics(0), u.GetSystemMetrics(1)      # 主显示器像素尺寸
-    hwnd = u.CreateWindowExW(WS_EX_TOPMOST, cls_name, title,
+    hwnd = u.CreateWindowExW(WS_EX_TOPMOST, CLS_NAME, title,
                              WS_POPUP | WS_VISIBLE, 0, 0, sw, sh,
-                             None, None, wc.hInstance, None)
+                             None, None, k32.GetModuleHandleW(None), None)
     if not hwnd:
         raise OSError('CreateWindowExW 失败: %d' % ctypes.get_last_error())
     # 抢前台：SetForegroundWindow 对"刚创建且当前没人操作"的进程通常直接成功
