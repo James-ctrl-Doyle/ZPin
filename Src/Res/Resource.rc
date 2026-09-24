@@ -1,7 +1,11 @@
 ﻿#define APSTUDIO_READONLY_SYMBOLS
 #include "winres.h"
 #undef APSTUDIO_READONLY_SYMBOLS
-1 ICON "logo.ico"
+// 程序图标。路径相对本文件（Src/Res/），所以往上两级到仓库根再进 Doc ——
+// 图标成品（logo.png 设计稿 + logo.ico 各尺寸）统一放在 Doc/ 下，由
+// ext/icon/build.py 生成并发布（改图改 design.py 后重跑它即可）。
+// ⚠ ICON 语句只认 ICO 格式，不能喂 png。
+1 ICON "..\\..\\Doc\\logo.ico"
 icon.ttf RCDATA "iconfont.ttf"
 zh-CN RCDATA "../../Lang/简体中文.zh-CN.json"
 en-US RCDATA "../../Lang/English.en-US.json"

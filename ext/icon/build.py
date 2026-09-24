@@ -11,6 +11,7 @@ r"""图标构建：SVG 设计稿 -> 各尺寸 PNG -> 多尺寸 ICO -> 对比预�
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -29,6 +30,15 @@ TASKS = os.path.join(ROOT, '_tasks.json')
 NAMES = [design.NAME]
 SIZES = [16, 24, 32, 48, 64, 128, 256, 512]
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
+
+# 所有产物都写进 ext/icon/_review/（扁平，不再套一层以图标名命名的子目录 ——
+# 目录里本来就只有这一套图标）。这个目录整体被 gitignore：里面的东西都能重建，
+# 真正要进仓库的成品由 publish() 送到 Doc/ 下（见文件末尾）。
+OUT = os.path.join(ROOT, '_review')
+
+# 成品送去的地方：Doc/ 下那两个是**编译真正会用**的文件（Resource.rc 指向 logo.ico），
+# 所以它们必须进仓库；ext/icon/_review/ 里的同名文件只是过程产物
+DOC = os.path.normpath(os.path.join(ROOT, '..', '..', 'Doc'))
 
 FONT = ImageFont.truetype(r'C:\Windows\Fonts\arial.ttf', 22)
 FONT_S = ImageFont.truetype(r'C:\Windows\Fonts\arial.ttf', 15)
@@ -58,17 +68,17 @@ def check(im, size, path, min_opaque=0.9):
 def build_variants():
     """生成两套 SVG（大/小尺寸），渲染全部尺寸，返回 {name: {size: Image}}。"""
     svg_paths, jobs, out = {}, [], {}
+    os.makedirs(OUT, exist_ok=True)
     for name in NAMES:
         out[name] = {}
         for small, suffix in ((False, ''), (True, '-small')):
-            p = os.path.join(ROOT, f'{name}{suffix}.svg')
+            p = os.path.join(OUT, f'{name}{suffix}.svg')
             with open(p, 'w', encoding='utf-8') as f:
                 f.write(design.build_svg(small))
             svg_paths[(name, small)] = p
-        d = os.path.join(ROOT, 'png', name)
         for s in SIZES:
             small = s < design.SMALL_THRESHOLD
-            o = os.path.join(d, f'{s}.png')
+            o = os.path.join(OUT, f'{s}.png')
             jobs.append((svg_paths[(name, small)], o, s))
             out[name][s] = o
 
@@ -88,7 +98,7 @@ def build_variants():
 
 
 def pack_ico(name, imgs):
-    path = os.path.join(ROOT, f'{name}.ico')
+    path = os.path.join(OUT, f'{name}.ico')
     imgs[256].save(path, format='ICO',
                    append_images=[imgs[s] for s in ICO_SIZES if s != 256],
                    sizes=[(s, s) for s in ICO_SIZES])
@@ -122,7 +132,7 @@ def preview(all_imgs):
                 canvas.alpha_composite(all_imgs[name][c], (x, y + (cell_h - c) // 2))
                 x += c + gap
             y += cell_h + gap
-        p = os.path.join(ROOT, f'preview-{theme}.png')
+        p = os.path.join(OUT, f'preview-{theme}.png')
         canvas.convert('RGB').save(p)
         print(f'  {os.path.basename(p)}')
 
@@ -147,9 +157,27 @@ def zoom_small(all_imgs):
             canvas.alpha_composite(img, (x, y + 40))
             x += c * Z + gap
         y += cell + gap
-    p = os.path.join(ROOT, 'preview-small-zoom.png')
+    p = os.path.join(OUT, 'preview-small-zoom.png')
     canvas.convert('RGB').save(p)
     print(f'  {os.path.basename(p)}')
+
+
+def publish(name, imgs):
+    """把成品送到 Doc/ 下 —— 那两个文件是编译真正会用的，必须进仓库。
+
+      Doc/logo.png  512px 设计稿（人看的那份，也供文档引用）
+      Doc/logo.ico  多尺寸 ICO，Resource.rc 里 `1 ICON` 指向它
+
+    ⚠ 这里拷的是 .ico 而不是让 RC 直接用 .png：Windows 的 RC 编译器给 ICON 语句
+      只认 ICO 格式，喂 png 会编译失败。（README 里也从没说过能直接吃 png。）
+    """
+    os.makedirs(DOC, exist_ok=True)
+    png = os.path.join(DOC, 'logo.png')
+    ico = os.path.join(DOC, 'logo.ico')
+    imgs[512].save(png)
+    shutil.copyfile(os.path.join(OUT, f'{name}.ico'), ico)
+    print(f'  Doc/logo.png  ({imgs[512].size[0]}x{imgs[512].size[1]})')
+    print(f'  Doc/logo.ico  {[s[0] for s in sorted(Image.open(ico).ico.sizes())]}')
 
 
 if __name__ == '__main__':
@@ -161,4 +189,7 @@ if __name__ == '__main__':
     print('[preview]')
     preview(all_imgs)
     zoom_small(all_imgs)
+    print('[publish -> Doc/]')
+    for name in NAMES:
+        publish(name, all_imgs[name])
     print('done.')

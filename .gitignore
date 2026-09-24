@@ -37,14 +37,14 @@ Src/ZPin.build.vcxproj
 config.json
 /temp/
 
-# —— 图标设计工具（ext/icon/）的中间产物 ——
-# ext/icon/design.py 是唯一真源，其余都能重建（见 ext/icon/README.md）：
-#   svg / png / preview → build.py + render_all.js 生成
-#   Src/Res/logo.ico    → z-icon.ico 的副本（程序真正加载的那个，进仓库）
-#   _tasks.json         → render_all.js 的作业单，里面写死本机绝对路径，每次重建重写
+# —— 图标设计工具（ext/icon/）——
+# ext/icon/design.py 是唯一真源，`python build.py` 重建一切。
+#   _review/        各档 PNG、ICO、SVG、预览图 —— 全是过程产物，可重建，整个排除
+#   _tasks.json     render_all.js 的作业单，里面写死本机绝对路径，每次重建重写
+# 要进仓库的成品由 build.py 末尾的 publish() 送到 Doc/ 下（那两个**不**排除）：
+#   Doc/logo.png  512 设计稿          Doc/logo.ico  ← Src/Res/Resource.rc 指向它
 /ext/icon/_tasks.json
-/ext/icon/png/
-/ext/icon/preview-*.png
+/ext/icon/_review/
 
 # —— 本地目录：下划线开头的一律不进仓库 ——
 # 约定：所有只是本机用、不该进仓库的目录都以下划线开头，统一归到 _attic/ 下
