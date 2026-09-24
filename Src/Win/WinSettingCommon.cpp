@@ -11,9 +11,10 @@ WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
 {
     // ⚠ 设置项的**显示顺序由这里的调用顺序决定**（每一项内部是 makeChild 加进去的），
     //    跟下面那些 init*Ctrls 函数的**定义顺序无关** —— 别靠挪函数定义来调顺序，没用。
-    //    当前顺序：开机自启 → 管理员模式 → 语言 → 边框 → 保存目录 → 快速保存 → 历史保留
+    //    当前顺序：开机自启 → 管理员模式 → 游戏模式 → 语言 → 边框 → 保存目录 → 快速保存 → 历史保留
     initAutoStartCtrls();
     initAdminCtrls();
+    initGameModeCtrls();
     initLangCtrls();
     initBorderCtrl();
     initSaveCtrls();
@@ -79,6 +80,43 @@ void WinSettingCommon::initAdminCtrls()
     // 一句说明，与"快速保存"下面那条同一个写法：这个开关到底管什么用
     auto hint = makeChild<Ling::Label>();
     hint->setText(Lang::get(L"setting.adminTip"));
+    hint->setHeight(20.f);
+    hint->setFontSize(12.f);
+    hint->setColor(0x888888FF);
+
+    auto border = makeChild<Ling::Node>();
+    border->setHeight(1.f);
+    border->setBg(0xE0E0E0FF);
+}
+
+// 游戏模式：开着的时候，检测到全屏（含无边框全屏）游戏就自动暂停全局热键，
+// 退出游戏自动恢复。检测本体在 App.cpp 的 GameWatcher 里 —— 这里只管开关与文案
+void WinSettingCommon::initGameModeCtrls()
+{
+    auto box = makeChild<Ling::Node>();
+    box->setHeight(39.f);
+    box->setFlexDirection(Ling::FlexDirection::Row);
+    box->setAlignItems(Ling::Align::Center);
+
+    auto label = box->makeChild<Ling::Label>();
+    label->setText(Lang::get(L"setting.gameMode"));
+    label->setHeightPercent(100.f);
+    label->setJustifyContent(Ling::Justify::Center);
+    label->setFlexGrow(1.f);
+
+    auto btn = makeOnOffBtn(box);
+    styleToggle(btn, Setting::get()->getGameMode(), Lang::get(L"setting.toggleOn"));
+    btn->onClick.add([this](Ling::Button* btn) {
+        auto setting = Setting::get();
+        // 和"开机自启"那边不同：这个开关只是写条配置，没有会失败的系统调用，
+        // 所以不需要像自启那样"写失败就把按钮状态回滚"
+        setting->setGameMode(!setting->getGameMode());
+        styleToggle(btn, setting->getGameMode(), Lang::get(L"setting.toggleOn"));
+    });
+
+    // 一行说明，与"管理员模式"下面那条同一套写法：只写一句，不堆第二行
+    auto hint = makeChild<Ling::Label>();
+    hint->setText(Lang::get(L"setting.gameModeTip"));
     hint->setHeight(20.f);
     hint->setFontSize(12.f);
     hint->setColor(0x888888FF);

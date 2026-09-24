@@ -29,6 +29,7 @@ except Exception:
     pass
 
 user32 = ctypes.WinDLL('user32', use_last_error=True)
+gdi32 = ctypes.windll.gdi32
 k32 = ctypes.windll.kernel32
 
 PROC_NAME = 'ZPin.build.exe'
@@ -41,7 +42,7 @@ import _cfg_guard
 _cfg_guard.install(PORTABLE_CFG)
 
 LOG_DIR = os.path.join(_BUILD, 'logs')
-SHOT = os.path.join(LOG_DIR, 'setting_admin_block.png')
+SHOT = os.path.join(LOG_DIR, 'setting_page.png')
 
 WM_APP = 0x8000
 TRAY_MSG = WM_APP + 100
@@ -54,6 +55,7 @@ HWND_MESSAGE = -3
 # 带提示的行再 +20。顺序必须跟 WinSettingCommon 构造函数的调用顺序一致。
 ROWS = [('autoStart', 39), ('autoStartBorder', 1),
         ('admin', 39), ('adminTip', 20), ('adminBorder', 1),
+        ('gameMode', 39), ('gameModeTip', 20), ('gameModeBorder', 1),
         ('lang', 39), ('langBorder', 1),
         ('border', 39), ('borderBorder', 1),
         ('saveDir', 39), ('saveDirBorder', 1),
@@ -146,6 +148,51 @@ def open_setting_via_tray(pid, msgwnd):
     return None
 
 
+def shot_window(hwnd, path=None):
+    """把窗口**自身**渲染成 png。
+
+    ⚠ 用 PrintWindow(hwnd, hdc, 2)，参数 2 = PW_RENDERFULLCONTENT：
+      - 不加这个参数，D2D 渲染的窗口会得到一片空白；
+      - 更关键的是**不要**改回 ImageGrab.grab()/BitBlt 桌面那一套 —— 那是抓屏幕，
+        设置窗口若不在预期位置、或者上面压着别的窗口，截到的就是用户的浏览器、
+        聊天记录，而且会被存成 png 留在磁盘上。（2026-09-25 之前这个脚本就是这么干的。）
+    """
+    from PIL import Image
+    path = path or SHOT
+    r = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(r))
+    w, h = r.right - r.left, r.bottom - r.top
+    hdc = user32.GetWindowDC(hwnd)
+    mem = gdi32.CreateCompatibleDC(hdc)
+    bmp = gdi32.CreateCompatibleBitmap(hdc, w, h)
+    old = gdi32.SelectObject(mem, bmp)
+    user32.PrintWindow(hwnd, mem, 2)
+
+    class BMIH(ctypes.Structure):
+        _fields_ = [('biSize', wintypes.DWORD), ('biWidth', ctypes.c_long),
+                    ('biHeight', ctypes.c_long), ('biPlanes', wintypes.WORD),
+                    ('biBitCount', wintypes.WORD), ('biCompression', wintypes.DWORD),
+                    ('biSizeImage', wintypes.DWORD), ('biXPelsPerMeter', ctypes.c_long),
+                    ('biYPelsPerMeter', ctypes.c_long), ('biClrUsed', wintypes.DWORD),
+                    ('biClrImportant', wintypes.DWORD)]
+
+    bi = BMIH()
+    bi.biSize = ctypes.sizeof(BMIH)
+    bi.biWidth, bi.biHeight = w, -h        # 负数 = 自上而下，与 PIL 的行序一致
+    bi.biPlanes, bi.biBitCount = 1, 32
+    bi.biCompression = 0                   # BI_RGB
+    buf = ctypes.create_string_buffer(w * h * 4)
+    gdi32.GetDIBits(mem, bmp, 0, h, buf, ctypes.byref(bi), 0)
+
+    Image.frombuffer('RGB', (w, h), buf, 'raw', 'BGRX', 0, 1).save(path)
+
+    gdi32.SelectObject(mem, old)
+    gdi32.DeleteObject(bmp)
+    gdi32.DeleteDC(mem)
+    user32.ReleaseDC(hwnd, hdc)
+    return path
+
+
 def main():
     with open(PORTABLE_CFG, 'w', encoding='utf-16') as f:
         f.write('{"common":{"autoStart":false,"language":"zh-CN","borderWidth":0},'
@@ -176,7 +223,7 @@ def main():
         else:
             print('✔ 还余 %.0fpx' % (avail - used))
 
-        # 管理员这一段的纵向范围（逻辑坐标 -> 屏幕坐标）
+        # 管理员这一段的纵向范围（逻辑坐标 -> 屏幕坐标），确认它没掉到底部内边距外
         y = MARGIN_T
         for name, h in ROWS:
             if name == 'admin':
@@ -184,7 +231,7 @@ def main():
             y += h
         top = T + (y - MARGIN_T) * dpi + MARGIN_T * dpi  # 相对 body 顶端
         top = T + y * dpi
-        bottom = T + (y + 39 + 20 + 20) * dpi
+        bottom = T + (y + 39 + 20) * dpi     # 行(39) + 那一句提示(20)
         print('管理员模式这一段 y=%.0f..%.0f（窗口底边 y=%d）' % (top, bottom, T + H))
         if bottom > T + H - MARGIN_B * dpi:
             print('!! 这段落到了底部内边距之外')
@@ -192,10 +239,8 @@ def main():
 
         try:
             os.makedirs(LOG_DIR, exist_ok=True)
-            from PIL import ImageGrab
-            im = ImageGrab.grab(bbox=(L, int(top) - 12, L + W, int(bottom) + 12))
-            im.save(SHOT)
-            print('（已存图 ext/build/logs/setting_admin_block.png）')
+            shot_window(win['hwnd'])
+            print('（已存图 ext/build/logs/setting_page.png —— 整页，且只含窗口自身）')
         except Exception as e:
             print('（截图失败：%s）' % e)
     finally:

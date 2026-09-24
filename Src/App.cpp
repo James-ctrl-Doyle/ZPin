@@ -30,6 +30,113 @@ namespace
 
     // 进程存活期间一直留着，退出时不必回收（那时 COM/D2D 都已经拆了）
     DeviceKeepAlive* g_deviceKeepAlive{ nullptr };
+
+    // 游戏模式：常驻隐藏窗口 + 定时器，检测到全屏（或全屏无边框）游戏时自动暂停
+    // 所有全局热键，退出游戏自动恢复。
+    //
+    // 为什么要有它：打游戏时误触 F1/F3 会突然弹出截图窗口或贴图，轻则打断操作，
+    // 重则把全屏游戏顶到后台。托盘里那个"关闭所有快捷键"得用户自己记得开关，
+    // 这个替他把这件事自动化。
+    //
+    // ⚠ 暂停走的是 Setting::suspendShortcuts（只注销热键、**不写配置**），
+    //    和用户显式设置的"关闭所有快捷键"是两码事 —— 两者互不覆盖：用户手动
+    //    关掉的热键，游戏结束也不会被这里悄悄打开。
+    class GameWatcher : public Ling::WinBase
+    {
+    public:
+        void onCreated() override
+        {
+            // 1.5 秒一轮：游戏的进退都以秒计，这个频率够用，也不至于白烧 CPU。
+            // 定时器挂在窗口的 hwnd 上（Ling 的 setTimer 内部就是 SetTimer(hwnd,...)），
+            // 必须等窗口建出来才能设 —— 放 onCreated 里正是这个原因
+            setTimer(1500, 1);
+            onTimer.add([this](UINT id) {
+                if (id != 1) return;
+                check();
+            });
+            // 启动时先判一次：开机自启的场景可能一上来就停在游戏里
+            check();
+        }
+
+    private:
+        // 当前是否"因为我们"而暂停着热键。用来把"我暂停的"和"用户自己关的"分开，
+        // 免得退出游戏时把用户手动关掉的快捷键又打开
+        bool suspended{ false };
+
+        // 有没有全屏游戏在跑。两条判据覆盖两类：
+        //   1) D3D 独占全屏（真全屏）—— 系统直接给答案，最准；
+        //   2) 无边框全屏（borderless windowed，现在很多游戏默认这个）—— 系统不认，
+        //      只能自己看几何：前台窗口正好铺满它所在显示器，且没有标题栏/可调边框。
+        //      ⚠ 这一条必须排除本进程自己的窗口：截图覆盖层本身就是"铺满屏幕的无边框
+        //        窗口"，不排除的话一进截图模式就被自己判成游戏了
+        static bool fullscreenGameRunning()
+        {
+            QUERY_USER_NOTIFICATION_STATE state{};
+            if (SUCCEEDED(::SHQueryUserNotificationState(&state))
+                && state == QUNS_RUNNING_D3D_FULL_SCREEN) {
+                return true;
+            }
+
+            HWND fg = ::GetForegroundWindow();
+            if (!fg) return false;
+            DWORD pid{};
+            ::GetWindowThreadProcessId(fg, &pid);
+            if (pid == ::GetCurrentProcessId()) return false;   // 自己的窗口，不是游戏
+
+            // 桌面与任务栏也铺满屏幕，但显然不是游戏
+            wchar_t cls[64]{};
+            ::GetClassNameW(fg, cls, 64);
+            if (!::wcscmp(cls, L"Progman") || !::wcscmp(cls, L"WorkerW")
+                || !::wcscmp(cls, L"Shell_TrayWnd") || !::wcscmp(cls, L"Shell_SecondaryTrayWnd")) {
+                return false;
+            }
+
+            RECT wr{};
+            if (!::GetWindowRect(fg, &wr)) return false;
+            HMONITOR mon = ::MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
+            MONITORINFO mi{};
+            mi.cbSize = sizeof(mi);
+            if (!::GetMonitorInfoW(mon, &mi)) return false;
+            if (wr.left != mi.rcMonitor.left || wr.top != mi.rcMonitor.top
+                || wr.right != mi.rcMonitor.right || wr.bottom != mi.rcMonitor.bottom) {
+                return false;   // 没铺满整块显示器 → 窗口化
+            }
+
+            // 有标题栏或可调边框 = 只是最大化了的普通窗口，不是全屏游戏
+            const LONG style = ::GetWindowLongW(fg, GWL_STYLE);
+            if (style & (WS_CAPTION | WS_THICKFRAME)) return false;
+            return true;
+        }
+
+        void check()
+        {
+            auto setting = Setting::get();
+            if (!setting) return;
+
+            // 开关关着：如果之前是我们暂停的，先还回去，别的什么都不做
+            if (!setting->getGameMode()) {
+                if (suspended) {
+                    setting->resumeShortcuts();
+                    suspended = false;
+                }
+                return;
+            }
+
+            const bool inGame = fullscreenGameRunning();
+            if (inGame == suspended) return;   // 状态没变，别反复动热键
+
+            if (inGame) {
+                setting->suspendShortcuts();
+                suspended = true;
+            }
+            else {
+                setting->resumeShortcuts();
+                suspended = false;
+            }
+        }
+    };
+
+    GameWatcher* g_gameWatcher{ nullptr };
 }
 
 
@@ -55,6 +162,10 @@ void App::dispose()
     // 占位窗口也放掉：它一析构、列表就空了，D2D 随之释放（此时已没有别的窗口）
     delete g_deviceKeepAlive;
     g_deviceKeepAlive = nullptr;
+    // 游戏检测窗口同理。⚠ 它排在 winCap/winPin 之后：如果退出时正被它暂停着热键，
+    // 那些热键本来就该随进程一起没了，不需要特意恢复
+    delete g_gameWatcher;
+    g_gameWatcher = nullptr;
     Lang::dispose();
     Setting::dispose();
     app.reset();
@@ -218,6 +329,10 @@ App::App()
 		// 预热必须走 dq（= UI 线程）—— D2D 工厂是 SINGLE_THREADED 的，换线程建出来也不能用
 		g_deviceKeepAlive = new DeviceKeepAlive();
 		g_deviceKeepAlive->createNativeWindow(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP);
+		// 游戏模式检测（开关在设置-通用里）：同样是个常驻隐藏窗口，
+		// 自己带一个 1.5 秒的定时器查有没有全屏游戏在跑
+		g_gameWatcher = new GameWatcher();
+		g_gameWatcher->createNativeWindow(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP);
 		app->dq.TryEnqueue([]() { Ling::D2D::get(); });
 		// --open-setting：刚才是"切换管理员模式"重启过来的（设置页 relaunchSelf 加的参数）。
 		// 重启期间托盘图标会消失一下再回来，不把设置页摆回来的话用户会觉得"重启完就散架了"。

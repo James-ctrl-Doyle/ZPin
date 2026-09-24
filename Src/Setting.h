@@ -69,6 +69,13 @@ public:
 	// set 会立即生效——注销/重新注册所有全局热键；窗口内按键（翻历史那对）不受影响
 	void setDisableHotkeys(bool disable);
 	bool getDisableHotkeys();
+	// 游戏模式：开着的时候，检测到全屏（含无边框全屏）游戏就自动暂停全局热键，
+	// 退出游戏自动恢复。存 common.gameMode，默认关闭。
+	// ⚠ 它靠的是 suspendShortcuts/resumeShortcuts 那套**运行时不写配置**的机制，
+	//    和上面"关闭所有快捷键"（用户显式设置的持久状态）是两回事 —— 两者互不覆盖：
+	//    用户手动关掉的快捷键，游戏结束也不会被它悄悄打开
+	bool getGameMode();
+	void setGameMode(bool on);
 	std::wstring getLang();
 	void setLang(const std::wstring& lang);
 	// 截图选区的边框粗细（逻辑像素，0 = 不画边框）。乘上 dpi 才是物理像素

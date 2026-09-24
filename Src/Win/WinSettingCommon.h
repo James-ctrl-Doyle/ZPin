@@ -18,6 +18,8 @@ private:
   	// 管理员模式：显示当前状态，非管理员时可一键以管理员身份重启
   	// （任务管理器这类管理员窗口，普通权限的进程截不了）
   	void initAdminCtrls();
+  	// 游戏模式：开着时检测到全屏游戏就自动禁用全局热键（打游戏防误触）
+  	void initGameModeCtrls();
 	void updateSaveDirLabel();
 	void updateHistoryLabel();
 	void setQuickSaveBtn(Ling::Button* btn);

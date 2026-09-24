@@ -374,8 +374,27 @@ void Setting::setDisableHotkeys(bool disable)
     }
 }
 
-std::filesystem::path Setting::getTempPath()
+bool Setting::getGameMode()
 {
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    return common && common.GetNamedBoolean(L"gameMode", false);
+}
+
+void Setting::setGameMode(bool on)
+{
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    if (!common) {
+        common = JsonObject();
+        configObj.SetNamedValue(L"common", common);
+    }
+    common.SetNamedValue(L"gameMode", JsonValue::CreateBooleanValue(on));
+    save();
+    // 这里**不立刻**去检测/切换热键：开关只写配置，实际生效交给 GameWatcher 的
+    // 定时器（1.5 秒一轮）。开=等下一轮发现"正在全屏游戏"就暂停，关=下一轮发现
+    // 自己还暂停着就恢复。少一个入口就少一处状态不一致
+}
+
+std::filesystem::path Setting::getTempPath(){
     // 数据目录下的 temp：截图缓存 last.bin、录屏临时文件、截图历史都放这儿
     auto path = dataPath; //复制一份，append 会就地改
     return path.append(L"temp");
