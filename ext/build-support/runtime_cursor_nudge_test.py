@@ -51,7 +51,7 @@ VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT = 0x26, 0x28, 0x25, 0x27
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))
-EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', 'ScreenCapture.build.exe')
+EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', 'ZPin.build.exe')
 EXE_DIR = os.path.dirname(EXE)
 PORTABLE_CFG = os.path.join(EXE_DIR, 'config.json')
 import _cfg_guard          # 这行文件就是 <exe 同目录>\config.json = 用户真实配置，得护栏

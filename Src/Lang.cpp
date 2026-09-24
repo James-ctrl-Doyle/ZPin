@@ -107,7 +107,7 @@ void Lang::initLang(const std::wstring& langCode)
 		}
 		else {
 			auto msg = L"lang pare error：" + pathStr + L"\n use English";
-			MessageBox(nullptr, msg.data(), L"ScreenCapture", MB_OK | MB_ICONWARNING);
+			MessageBox(nullptr, msg.data(), L"ZPin", MB_OK | MB_ICONWARNING);
 		}
 		break;
 	}

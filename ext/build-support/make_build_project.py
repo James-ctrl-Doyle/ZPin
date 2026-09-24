@@ -1,11 +1,11 @@
-r"""生成一份 ScreenCapture 的工程副本，用于本机编译验证。
+r"""生成一份 ZPin 的工程副本，用于本机编译验证。
 
-为什么要副本：原 `Src/ScreenCapture.vcxproj` 里的 IntDir / OutDir 会落到仓库里，
+为什么要副本：原 `Src/ZPin.vcxproj` 里的 IntDir / OutDir 会落到仓库里，
 而我们要把中间产物和 exe 都放到工作区的 `ext/build/` 下，不污染仓库。所以不改原文件，
-只生成一份同目录的副本（`ScreenCapture.build.vcxproj`），把产物目录指过去。
+只生成一份同目录的副本（`ZPin.build.vcxproj`），把产物目录指过去。
 
 Ling 的路径**不用替换**：原工程写的是 `$(SolutionDir)ext\Ling`，而 Ling 已经内置在仓库的
-`ext/Ling`，用 `ScreenCapture.slnx` 打开就能直接编（见 Doc/Build.md）。
+`ext/Ling`，用 `ZPin.slnx` 打开就能直接编（见 Doc/Build.md）。
 副本里之所以还是要换成绝对路径，是因为 MSBuild 直接编 .vcxproj（不经过 .slnx）时
 `$(SolutionDir)` 是空的。
 
@@ -18,14 +18,14 @@ import os
 # （ext/build-support → ext → <仓库根>）。
 # ⚠ 它原来放在 <仓库根>/_tools/，那时是一级。2026-09-22 收拢到 ext/build-support/
 #    时改过这里 —— 当时先写成三级，把 ROOT 推到了仓库的父目录，构建直接
-#    FileNotFoundError 找不到 Src/ScreenCapture.vcxproj。数层数要照着实际目录数。
+#    FileNotFoundError 找不到 Src/ZPin.vcxproj。数层数要照着实际目录数。
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                      '..', '..'))
 EXT = os.path.join(ROOT, 'ext')
 SRC = os.path.join(ROOT, 'Src')
 
-src_path = os.path.join(SRC, 'ScreenCapture.vcxproj')
-dst_path = os.path.join(SRC, 'ScreenCapture.build.vcxproj')
+src_path = os.path.join(SRC, 'ZPin.vcxproj')
+dst_path = os.path.join(SRC, 'ZPin.build.vcxproj')
 
 raw = open(src_path, 'rb').read()
 bom = raw[:3] == b'\xef\xbb\xbf'

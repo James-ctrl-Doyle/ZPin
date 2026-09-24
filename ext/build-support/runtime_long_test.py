@@ -4,7 +4,7 @@ r"""截长图端到端验证（第 4 项：每步滚更多 + 拼接正确性）�
   1. 起一个可滚动的目标窗口（scroll_target.py，独立进程；一格滚轮 = 100px，内容高 4000）
   2. F1 → 框选目标窗口客户区 → 点"截长图" → 在选区里点一下开始滚动
   3. 等它自己滚到底（工具条出现）
-  4. 点长图工具条上的"复制" → 结果图会写进 %appdata%\\ScreenCapture\\temp\\last.bin
+  4. 点长图工具条上的"复制" → 结果图会写进 %appdata%\\ZPin\\temp\\last.bin
   5. 读 last.bin：核对高度，并逐行比对内容行号 —— 拼接正确的话第 i 行就该是内容第 i 行，
      漏行/重复行都会立刻暴露
 """
@@ -36,7 +36,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))
 # 产物路径从脚本自身位置推导（脚本在 <仓库根>/ext/build-support/），换机器/挪目录都不用改。
 # 需要指到别的 exe 时用环境变量 SC_EXE
-EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', 'ScreenCapture.build.exe')
+EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', 'ZPin.build.exe')
 TARGET = os.path.join(_HERE, 'scroll_target.py')
 EXE_DIR = os.path.dirname(EXE)
 PORTABLE_CFG = os.path.join(EXE_DIR, 'config.json')

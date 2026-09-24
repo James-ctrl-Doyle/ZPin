@@ -9,14 +9,14 @@
 ├─ Doc/                 文档与图片
 ├─ ext/Ling/            内置的 Ling GUI 框架（含 yoga 布局引擎）
 ├─ ext/build-support/   构建脚本 + 运行时回归测试 + 开发小工具
-└─ ScreenCapture.slnx   解决方案
+└─ ZPin.slnx   解决方案
 ```
 
 所有编译产物统一落在 `ext/build/`（已由 `.gitignore` 排除），不会污染源码目录。
 
 ## 编译
 
-用 Visual Studio 打开 `ScreenCapture.slnx` 直接编译即可 —— **Ling 框架已经内置在 `ext/Ling`，
+用 Visual Studio 打开 `ZPin.slnx` 直接编译即可 —— **Ling 框架已经内置在 `ext/Ling`，
 不需要再单独准备**。工程里引用的是 `$(SolutionDir)ext\Ling`，相对路径，换机器不用改。
 
 命令行完整重编（含 Ling 与 yoga 从源码重编）：
@@ -26,13 +26,13 @@ bash ext/build-support/rebuild_all.sh
 ```
 
 脚本会自动：① 用 `ext/build-support/make_build_project.py` 生成构建用的工程副本
-`Src/ScreenCapture.build.vcxproj`；② 用 `vswhere` 定位 MSBuild；③ 依次重编 yoga → Ling → ScreenCapture，
+`Src/ZPin.build.vcxproj`；② 用 `vswhere` 定位 MSBuild；③ 依次重编 yoga → Ling → ZPin，
 日志写到 `ext/build/logs/`。可用环境变量覆盖：`MSBUILD`（MSBuild.exe 路径）、`SC_ROOT`（项目根）。
 
-产物：`ext/build/bin/x64/Release/ScreenCapture.build.exe`
+产物：`ext/build/bin/x64/Release/ZPin.build.exe`
 
 > ⚠ 上面那条命令需要 **Python 3**（只用来生成工程副本，不需要安装任何 Python 包）。
-> 没有 Python 的话，用 Visual Studio 打开 `ScreenCapture.slnx` 编译，效果一样。
+> 没有 Python 的话，用 Visual Studio 打开 `ZPin.slnx` 编译，效果一样。
 >
 > 为什么要生成副本：不经过 `.slnx` 直接编 `.vcxproj` 时 `$(SolutionDir)` 是空的，
 > 工程里的 `$(SolutionDir)ext\Ling` 解析不出来，会报
@@ -100,7 +100,7 @@ Ling 原本是独立仓库（[xland/Ling](https://github.com/xland/Ling)）。�
 
 | 脚本 | 说明 |
 |---|---|
-| `rebuild_all.sh` | 完整重编（yoga → Ling → ScreenCapture）。构建成功后会另外备一份带版本号的发布件到 `ext/build/release/ScreenCapture_<版本>.exe` |
+| `rebuild_all.sh` | 完整重编（yoga → Ling → ZPin）。构建成功后会另外备一份带版本号的发布件到 `ext/build/release/ZPin_<版本>.exe` |
 | `release.sh` | 把发布件发到 GitHub Releases（打 tag + 建 release + 传 exe）。`--dry-run` 只做本地准备。见下 |
 | `runtime_*_test.py` | 运行时回归测试（截图、绘图、长图、录屏、二维码、快捷键、历史回溯、设置页、放大镜…）。需要先编出 exe，并用 exe 同目录的 `config.json` 做便携配置；脚本会备份/还原你真实的配置 |
 | `_pylibs.py` | 把 `ext/build/.pylibs`（Pillow）挂进 `sys.path`。每个要 `import PIL` 的测试脚本在开头 `import _pylibs` 就行 |
@@ -120,7 +120,7 @@ bash ext/build-support/release.sh        # 2. 发到 GitHub Releases
 ```
 
 `release.sh` 会：从 **exe 自己的版本资源**读版本号（不另外维护一处版本号）→ 确保
-`ext/build/release/ScreenCapture_<版本>.exe` 就位 → 从 `CHANGELOG.md` 抽该版本段落当 release
+`ext/build/release/ZPin_<版本>.exe` 就位 → 从 `CHANGELOG.md` 抽该版本段落当 release
 说明 → 打 tag `v<版本>` 并推送 → 建 release 并把 exe 传上去。
 
 #### 交付目录 `ext/build/release/`
@@ -129,7 +129,7 @@ bash ext/build-support/release.sh        # 2. 发到 GitHub Releases
 
 ```
 ext/build/release/
-├─ ScreenCapture_2.6.0.exe     # 构建生成（每次重编会覆盖）
+├─ ZPin_2.6.0.exe     # 构建生成（每次重编会覆盖）
 ├─ config.json                 # 便携配置：程序读 exe 同目录的这份
 └─ temp/                       # 运行时数据（last.bin、shots/ 截图历史）
 ```

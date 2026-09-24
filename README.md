@@ -2,7 +2,7 @@
 
 ![banner](./Doc/banner.png)
 
-**ScreenCapture** 一个小巧但功能强大的Windows截图工具。
+**ZPin** 一个小巧但功能强大的Windows截图工具。
 
 ## 特性
 
@@ -30,7 +30,7 @@
 
 ## 下载
 
-[Release](https://github.com/James-ctrl-Doyle/ScreenCapture/releases/) （1MB）
+[Release](https://github.com/James-ctrl-Doyle/ZPin/releases/) （1MB）
 
 ## 常用功能与问题
 
@@ -46,7 +46,7 @@
 ## 编译
 
 - [Ling](https://github.com/xland/Ling) GUI 框架已经内置在 `ext/Ling`，clone 下来直接用
-  Visual Studio 打开 `ScreenCapture.slnx` 就能编译，不需要额外准备依赖。
+  Visual Studio 打开 `ZPin.slnx` 就能编译，不需要额外准备依赖。
 - 命令行完整重编：`bash ext/build-support/rebuild_all.sh`
 - 依赖清单、目录结构、开发脚本说明见 [Doc/Build.md](./Doc/Build.md)。
 - [2.4.25（基于D2D）](https://github.com/xland/ScreenCapture/tree/2.4.25)或 [2.3.3（基于Qt）](https://github.com/xland/ScreenCapture/tree/2.3.3_qt)是以前的稳定分支。
@@ -55,24 +55,24 @@
 
 ```
 // 截图完成后即退出进程。
-> ScreenCapture.exe --auto-quit=true
+> ZPin.exe --auto-quit=true
 
 // 框选完成后不显示工具条，直接进入指定功能：
 // pin 钉图/图像标记
-> ScreenCapture.exe --enter=pin
+> ZPin.exe --enter=pin
 // long 长截图
-> ScreenCapture.exe --enter=long
+> ZPin.exe --enter=long
 // video 屏幕录制
-> ScreenCapture.exe --enter=video
+> ZPin.exe --enter=video
 // ocr 文字识别
-> ScreenCapture.exe --enter=ocr
+> ZPin.exe --enter=ocr
 // qr 二维码识别
-> ScreenCapture.exe --enter=qr
+> ZPin.exe --enter=qr
 // tray 仅注册托盘图标，不执行任何操作
-> ScreenCapture.exe --enter=tray
+> ZPin.exe --enter=tray
 
 // 两个参数可以联合使用，比如：不注册托盘图标，截完长图后进程直接退出
-> ScreenCapture.exe --enter=long --auto-quit=true
+> ZPin.exe --enter=long --auto-quit=true
 ```
 
 ## 文字识别
@@ -87,7 +87,7 @@
 
 ## 便携能力
 
-程序是纯绿色的：所有数据都在 `ScreenCapture.exe` 同目录下，不在系统里留任何东西（不创建 `%appdata%\ScreenCapture`）。
+程序是纯绿色的：所有数据都在 `ZPin.exe` 同目录下，不在系统里留任何东西（不创建 `%appdata%\ZPin`）。
 
 - **配置**：`config.json`（exe 同目录，首次运行自动生成）
 - **临时文件与截图历史**：`temp\` 子目录

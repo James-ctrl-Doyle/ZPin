@@ -34,7 +34,7 @@ user32.FindWindowExW.restype = wintypes.HWND
 user32.GetDpiForWindow.argtypes = [ctypes.c_void_p]
 user32.GetDpiForWindow.restype = ctypes.c_uint
 
-PROC_NAME = 'ScreenCapture.build.exe'
+PROC_NAME = 'ZPin.build.exe'
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))
 EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', PROC_NAME)

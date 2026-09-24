@@ -42,13 +42,13 @@ WinSettingAbout::WinSettingAbout(Ling::WinBase* parent):Ling::Node(parent)
             // 所以除了给足宽度，还得用 setMaxTextWidth 把文字宽度也钉住，两边一致
             // 宽度按这串地址在 13pt 雅黑下的实际宽度（实测约 277px）留一点余量
             constexpr float linkW{ 290.f };
-            btn->setText(L"github.com/James-ctrl-Doyle/ScreenCapture");
+            btn->setText(L"github.com/James-ctrl-Doyle/ZPin");
             btn->setWidth(linkW);
             btn->setMaxTextWidth(linkW);
             btn->setColor(0x597ef7ff);
             btn->setHoverColor(0x597ef7ff);
             btn->onClick.add([this](Ling::Button* btn) {
-                std::wstring url{ L"https://github.com/James-ctrl-Doyle/ScreenCapture" };
+                std::wstring url{ L"https://github.com/James-ctrl-Doyle/ZPin" };
                 ShellExecute(win->hwnd, L"open", url.data(), nullptr, nullptr, SW_SHOWNORMAL);
                 });
         }

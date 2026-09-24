@@ -28,9 +28,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))
 # 产物路径从脚本自身位置推导（脚本在 <仓库根>/ext/build-support/），换机器/挪目录都不用改。
 # 需要指到别的 exe 时用环境变量 SC_EXE
-EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', 'ScreenCapture.build.exe')
+EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', 'ZPin.build.exe')
 EXE_DIR = os.path.dirname(EXE)
-# 数据目录已经搬到 exe 同目录了（不再建 %appdata%\ScreenCapture），
+# 数据目录已经搬到 exe 同目录了（不再建 %appdata%\ZPin），
 # last.bin 现在落在 <exe 目录>\temp\last.bin
 APPDATA = EXE_DIR
 TEMP_DIR = os.path.join(APPDATA, 'temp')

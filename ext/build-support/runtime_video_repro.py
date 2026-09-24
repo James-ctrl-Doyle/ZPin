@@ -1,10 +1,10 @@
 """复现"进入截图模式后点录屏按钮，工具条消失"——用**用户真实环境**：
 
-- exe 用 ext/build/release/ScreenCapture_<版本>.exe（交付目录里那份，旁边就是
+- exe 用 ext/build/release/ZPin_<版本>.exe（交付目录里那份，旁边就是
   用户的真实 config.json），**不覆盖那份 config.json**（cfg_guard 会备份/还原）。
   对比：runtime_video_probe.py 每次都自己写一份接近默认的测试配置 —— 这正是
   它一直复现不出来、而用户天天能撞见的原因之一。
-  （2026-09-22 之前这里是 _review/ScreenCapture.exe；_review 已撤销，配置与运行
+  （2026-09-22 之前这里是 _review/ZPin.exe；_review 已撤销，配置与运行
    数据都收进了 ext/build/release/。）
 - 窗口枚举**包含隐藏窗口**：如果 ToolVideo 建出来了但 IsWindowVisible=false，
   或者建在了屏幕外，probe 那种"只看可见窗口"的列表根本暴露不了。
@@ -30,11 +30,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 # 本文件在 <仓库根>/ext/build-support/ 下，仓库根要往上两级
 _REPO = os.path.normpath(os.path.join(_HERE, '..', '..'))
 # 默认用交付目录里那份 exe + 它旁边的真实 config（cwd 会是 exe 目录）。
-# 文件名带版本号（ScreenCapture_2.6.0.exe），所以按通配取最新的那个。
+# 文件名带版本号（ZPin_2.6.0.exe），所以按通配取最新的那个。
 _REL_DIR = os.path.join(_REPO, 'ext', 'build', 'release')
-_CANDS = sorted(glob.glob(os.path.join(_REL_DIR, 'ScreenCapture_*.exe')))
+_CANDS = sorted(glob.glob(os.path.join(_REL_DIR, 'ZPin_*.exe')))
 if not _CANDS:
-    print("!! 交付目录里没有 ScreenCapture_*.exe：%s" % _REL_DIR)
+    print("!! 交付目录里没有 ZPin_*.exe：%s" % _REL_DIR)
     print("   先跑 bash ext/build-support/rebuild_all.sh，或用 SC_EXE 环境变量指定 exe")
 os.environ.setdefault('SC_EXE', _CANDS[-1] if _CANDS else '')
 

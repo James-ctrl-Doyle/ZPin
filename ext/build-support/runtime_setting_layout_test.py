@@ -31,7 +31,7 @@ except Exception:
 user32 = ctypes.WinDLL('user32', use_last_error=True)
 k32 = ctypes.windll.kernel32
 
-PROC_NAME = 'ScreenCapture.build.exe'
+PROC_NAME = 'ZPin.build.exe'
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))
 EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', PROC_NAME)

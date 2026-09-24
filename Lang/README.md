@@ -1,4 +1,4 @@
-1. 在 `ScreenCapture.exe` 同目录下创建一个 `Lang` 子目录。
+1. 在 `ZPin.exe` 同目录下创建一个 `Lang` 子目录。
 2. 把语言文件拷贝进去，文件名格式为 `<语言名>.<语言代码>.json`（例如 `English.en-US.json`）。
 3. 重启应用，在「设置 → 语言」里即可看到新语言。
 
@@ -7,7 +7,7 @@
 
 ------
 
-1. Create a `Lang` subdirectory next to `ScreenCapture.exe`.
+1. Create a `Lang` subdirectory next to `ZPin.exe`.
 2. Copy the language file into it. The file name must be `<Language name>.<locale code>.json` (for example `English.en-US.json`).
 3. Restart the application; the new language appears under Settings -> Language.
 

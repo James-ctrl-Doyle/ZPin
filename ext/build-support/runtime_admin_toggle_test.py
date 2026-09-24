@@ -6,7 +6,7 @@ r"""设置页"退出管理员模式"依赖的关键机制验证。
 
 这个假设是整个"退出管理员模式"能不能成立的关键，本脚本把它复刻一遍来验证：
   1. 脚本先把自己用 runas 拉成一个**管理员**副本（--child）
-  2. 那个管理员副本用 explorer 的令牌启动 ScreenCapture.exe
+  2. 那个管理员副本用 explorer 的令牌启动 ZPin.exe
   3. 检查新实例的令牌 —— 必须是**普通权限**才算通过
 
 反向那条（普通 → 管理员，走 runas）由 runtime_autostart_test.py 覆盖。
@@ -31,7 +31,7 @@ shell.ShellExecuteW.restype = ctypes.c_void_p
 shell.ShellExecuteW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR,
                                wintypes.LPCWSTR, wintypes.LPCWSTR, ctypes.c_int]
 
-PROC_NAME = 'ScreenCapture.build.exe'
+PROC_NAME = 'ZPin.build.exe'
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))
 EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', PROC_NAME)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 完整重编（Rebuild）：yoga.lib / Ling.lib 从源码编一遍，ScreenCapture 全部文件重编。
+# 完整重编（Rebuild）：yoga.lib / Ling.lib 从源码编一遍，ZPin 全部文件重编。
 # 日志落在 ext/build/logs/，摘要写到 ext/build/summary.txt。
 # 必须在沙箱外执行（要真实调用编译器）。
 #
@@ -48,14 +48,14 @@ MSB="$(find_msbuild)"
 LING_DIR="$(winpath "$EXT/Ling")\\"
 LING_PROJ="${LING_DIR}Ling.vcxproj"
 YOGA_PROJ="${LING_DIR}yoga\\yoga.vcxproj"
-SC_PROJ="$(winpath "$ROOT/Src/ScreenCapture.build.vcxproj")"
+SC_PROJ="$(winpath "$ROOT/Src/ZPin.build.vcxproj")"
 
 log() { echo "$@" | tee -a "$SUMMARY"; }
 log "MSBuild : $MSB"
 log "项目根  : $ROOT"
 log ""
 
-# 0) 生成构建用的工程副本（Src/ScreenCapture.build.vcxproj）。
+# 0) 生成构建用的工程副本（Src/ZPin.build.vcxproj）。
 #    为什么需要副本：MSBuild 直接编 .vcxproj（不经过 .slnx）时 $(SolutionDir) 是空的，
 #    `$(SolutionDir)ext\Ling` 解析不出来就找不到 include/Ling.h；副本里把它换成绝对路径，
 #    顺便把 IntDir/OutDir 引到 ext/build/ 下，不污染仓库。
@@ -69,12 +69,12 @@ for c in python python3 py; do
 done
 if [ -z "$PY" ]; then
     log "!! 找不到 python（生成构建工程副本需要它）"
-    log "   替代做法：用 Visual Studio 打开 $ROOT/ScreenCapture.slnx 直接编译"
+    log "   替代做法：用 Visual Studio 打开 $ROOT/ZPin.slnx 直接编译"
     exit 1
 fi
 # 生成脚本与本脚本同目录（ext/build-support/）——2026-09-22 从 _tools/ 搬过来的
 if ! "$PY" "$(winpath "$SCRIPT_DIR/make_build_project.py")" > "$LOGS/make_project.log" 2>&1; then
-    log "!! 生成 $ROOT/Src/ScreenCapture.build.vcxproj 失败，日志见 $LOGS/make_project.log"
+    log "!! 生成 $ROOT/Src/ZPin.build.vcxproj 失败，日志见 $LOGS/make_project.log"
     cat "$LOGS/make_project.log" >> "$SUMMARY"
     exit 1
 fi
@@ -85,10 +85,10 @@ log ""
 # 从 ext/build/release/ 起的那份 —— 两份实例抢 F1 热键，回归测试会整片失败
 # （表现为"一半用例过、一半挂"）。所以两种名字都先结束掉。这是开发用的构建脚本，反复手杀太烦。
 # taskkill 本机不可用，用 PowerShell 的 Stop-Process。
-if ps -W 2>/dev/null | grep -qi "ScreenCapture"; then
-    log "--- 检测到正在运行的 ScreenCapture 实例，先结束它 ---"
+if ps -W 2>/dev/null | grep -qi "ZPin"; then
+    log "--- 检测到正在运行的 ZPin 实例，先结束它 ---"
     powershell -NoProfile -Command \
-        "Get-Process -Name 'ScreenCapture.build','ScreenCapture' -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:\$false" \
+        "Get-Process -Name 'ZPin.build','ZPin' -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:\$false" \
         >/dev/null 2>&1
     sleep 1
 fi
@@ -108,10 +108,10 @@ grep -cE "error [A-Z]+[0-9]+" "$LOGS/ling.log" | tee -a "$SUMMARY"
 ls -l "$EXT/Ling/x64/Release/" 2>/dev/null | tee -a "$SUMMARY"
 
 log ""
-log "########## 3/3  ScreenCapture (Rebuild, Release x64) ##########"
+log "########## 3/3  ZPin (Rebuild, Release x64) ##########"
 "$MSB" "$SC_PROJ" -p:Configuration=Release -p:Platform=x64 -t:Rebuild -m -v:m \
     > "$LOGS/screencapture.log" 2>&1
-log "ScreenCapture exit=$?"
+log "ZPin exit=$?"
 
 log ""
 log "--- 错误/警告统计 ---"
@@ -130,12 +130,12 @@ log "--- 产物 ---"
 ls -l "$EXT/build/bin/x64/Release/" 2>/dev/null | tee -a "$SUMMARY"
 
 # ---- 顺手备一份带版本号的发布件 ----
-# 内部产物名保持 ScreenCapture.build.exe 不变：三十来个测试脚本都按这个名字找它，
+# 内部产物名保持 ZPin.build.exe 不变：三十来个测试脚本都按这个名字找它，
 # config.json / temp 也在那个目录里，改名会把整套回归打挂。
-# 对外发布用的是另一份 ScreenCapture_<版本>.exe，版本号从 exe 自己的 VERSIONINFO 读
+# 对外发布用的是另一份 ZPin_<版本>.exe，版本号从 exe 自己的 VERSIONINFO 读
 # （唯一真源是 Src/Res/Resource.rc，不另外维护一处版本号）。
 # 真要发到 GitHub Releases 走 release.sh，它直接拿这个文件。
-REL_EXE="$EXT/build/bin/x64/Release/ScreenCapture.build.exe"
+REL_EXE="$EXT/build/bin/x64/Release/ZPin.build.exe"
 if [ -f "$REL_EXE" ]; then
     VER_FULL="$(powershell -NoProfile -Command \
         "(Get-Item '$(winpath "$REL_EXE")').VersionInfo.FileVersion" 2>/dev/null | tr -d '\r\n')"
@@ -143,10 +143,10 @@ if [ -f "$REL_EXE" ]; then
     if [ -n "$VER" ]; then
         REL_DIR="$EXT/build/release"
         mkdir -p "$REL_DIR"
-        cp -f "$REL_EXE" "$REL_DIR/ScreenCapture_$VER.exe"
+        cp -f "$REL_EXE" "$REL_DIR/ZPin_$VER.exe"
         log ""
         log "--- 发布件（v$VER）---"
-        ls -l "$REL_DIR/ScreenCapture_$VER.exe" | tee -a "$SUMMARY"
+        ls -l "$REL_DIR/ZPin_$VER.exe" | tee -a "$SUMMARY"
         log "发到 GitHub Releases：bash ext/build-support/release.sh"
     else
         log "!! 读不到 exe 的版本资源，跳过发布件"

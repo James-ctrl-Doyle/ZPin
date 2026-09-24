@@ -7,7 +7,7 @@
 # 做的事：
 #   1. 要求工作区干净（发布件必须能对应到某个提交）
 #   2. 从 exe 的**版本资源**里读版本号（不猜、不解析源码）→ 2.6.0
-#   3. 把 exe 复制成  ext/build/release/ScreenCapture_2.6.0.exe
+#   3. 把 exe 复制成  ext/build/release/ZPin_2.6.0.exe
 #   4. 从 CHANGELOG.md 抽出该版本的段落当 release 说明
 #   5. 打 tag v2.6.0 并推送
 #   6. 建 release + 上传那个 exe
@@ -22,7 +22,7 @@ DRY_RUN=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-EXE="$ROOT/ext/build/bin/x64/Release/ScreenCapture.build.exe"
+EXE="$ROOT/ext/build/bin/x64/Release/ZPin.build.exe"
 REL_DIR="$ROOT/ext/build/release"
 LOG_DIR="$ROOT/ext/build/logs"
 CHANGELOG="$ROOT/CHANGELOG.md"
@@ -57,7 +57,7 @@ VER_FULL="$(powershell -NoProfile -Command \
 [ -n "$VER_FULL" ] || die "读不到 exe 的版本资源"
 VER="$(printf '%s' "$VER_FULL" | cut -d. -f1-3)"
 TAG="v$VER"
-ASSET_NAME="ScreenCapture_${VER}.exe"
+ASSET_NAME="ZPin_${VER}.exe"
 echo "版本   : $VER_FULL  →  发布用 $VER"
 echo "tag    : $TAG"
 echo "发布件 : $ASSET_NAME"

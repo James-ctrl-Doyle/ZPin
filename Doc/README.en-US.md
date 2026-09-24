@@ -2,7 +2,7 @@
 
 ![banner](./banner.png)
 
-**ScreenCapture** A powerful and lightweight Windows screenshot tool.
+**ZPin** A powerful and lightweight Windows screenshot tool.
 
 ## Features
 
@@ -27,7 +27,7 @@
 
 ## Download
 
-[Release](https://github.com/James-ctrl-Doyle/ScreenCapture/releases/) (1MB)
+[Release](https://github.com/James-ctrl-Doyle/ZPin/releases/) (1MB)
 
 ## Supported Operating Systems
 
@@ -42,20 +42,20 @@
 
 ```
 // Terminate the process immediately after the capture is finished.
-> ScreenCapture.exe --auto-quit=true
+> ZPin.exe --auto-quit=true
 
 // Skip the toolbar once the region is selected and go straight into the specified feature:
 // long = scrolling capture (long screenshot)
-> ScreenCapture.exe --enter=long
+> ZPin.exe --enter=long
 // video = screen recording
-> ScreenCapture.exe --enter=video
+> ZPin.exe --enter=video
 // ocr = text recognition
-> ScreenCapture.exe --enter=ocr
+> ZPin.exe --enter=ocr
 // qr = QR code recognition
-> ScreenCapture.exe --enter=qr
+> ZPin.exe --enter=qr
 
 // The two arguments can be combined, for example: no tray icon, and the process quits right after the long screenshot is taken.
-> ScreenCapture.exe --enter=long --auto-quit=true
+> ZPin.exe --enter=long --auto-quit=true
 ```
 
 ## Text Recognition (OCR)

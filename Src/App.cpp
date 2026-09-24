@@ -167,7 +167,7 @@ bool App::relaunchElevatedIfNeeded()
 App::App()
 {    // Ling 的 init 不接受参数：appID 由 App 自己在构造里生成（Ling_XXXXXX，见 Ling 的
     // COMPILE_TIME_RAND_STR），并顺手调 SetCurrentProcessExplicitAppUserModelID。
-    // 原来这里传的 L"ScreenCapture" 是更早那版 Ling 的写法，公开 master 上已经没有这个参数了
+    // 原来这里传的 L"ZPin" 是更早那版 Ling 的写法，公开 master 上已经没有这个参数了
     Ling::init();
     auto app = Ling::App::get();
     app->initArgs();

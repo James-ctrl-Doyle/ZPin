@@ -57,7 +57,7 @@ Setting::Setting() :dataPath{ initDataPath() }, configPath{ initConfigPath() }
             migrateShortcutKeys();
             return;
         }
-        MessageBox(nullptr, L"config.json parse error，use default config", L"ScreenCapture", MB_OK | MB_ICONWARNING);
+        MessageBox(nullptr, L"config.json parse error，use default config", L"ZPin", MB_OK | MB_ICONWARNING);
     }
     configObj = JsonObject::Parse(defaultConfig); 
 }
@@ -247,7 +247,7 @@ void Setting::migrateShortcutKeys()
 namespace
 {
     constexpr wchar_t autoStartRunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-    constexpr wchar_t autoStartValueName[] = L"ScreenCapture";
+    constexpr wchar_t autoStartValueName[] = L"ZPin";
 }
 
 std::wstring Setting::autoStartCommandLine(bool elevate)
@@ -452,7 +452,7 @@ std::filesystem::path Setting::initDataPath()
     // 数据目录就是 exe 同目录（绿色版：配置和临时文件都跟着程序走）。
     // 只在旁边建一个 temp 子目录（last.bin / 录屏临时文件 / 截图历史都在里面），
     // exe 目录本身除了 config.json 不再多任何东西。
-    // 不再创建 %appdata%\ScreenCapture —— 用户要的就是"别在别处留东西"。
+    // 不再创建 %appdata%\ZPin —— 用户要的就是"别在别处留东西"。
     // 装在 Program Files 下时这里可能没写权限，那 create 会失败，但也不回退到 appdata
     wchar_t buffer[MAX_PATH]{};
     GetModuleFileName(nullptr, buffer, MAX_PATH);
@@ -468,7 +468,7 @@ std::filesystem::path Setting::initDataPath()
 std::filesystem::path Setting::initConfigPath()
 {
     // 配置就在 exe 同目录。
-    // 老版本把它放在 %appdata%\ScreenCapture\config.json 下：升级上来时**搬一次**过来，
+    // 老版本把它放在 %appdata%\ZPin\config.json 下：升级上来时**搬一次**过来，
     // 否则用户的热键、画笔粗细、边框粗细会整套回到默认值。
     // 用 copy 而不是 move —— 老文件留在原地不动，删不删由用户自己决定
     wchar_t buffer[MAX_PATH]{};
@@ -478,7 +478,7 @@ std::filesystem::path Setting::initConfigPath()
     PWSTR oldTmp{ nullptr };
     if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &oldTmp)) && oldTmp) {
         auto legacy = std::filesystem::path{ oldTmp }
-            .append(L"ScreenCapture").append(L"config.json");
+            .append(L"ZPin").append(L"config.json");
         CoTaskMemFree(oldTmp);
         std::error_code ec;
         if (std::filesystem::exists(legacy, ec)) {

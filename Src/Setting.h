@@ -114,7 +114,7 @@ private:
 	JsonObject getToolObj(const std::wstring& tool);
 	std::filesystem::path initDataPath();
 	// 决定配置文件用哪一份：exe 同目录有 config.json 就用它（绿色版，配置跟着程序走），
-	// 否则用 %appdata%\ScreenCapture\config.json。二者只认一个，读哪儿就写哪儿。
+	// 否则用 %appdata%\ZPin\config.json。二者只认一个，读哪儿就写哪儿。
 	std::filesystem::path initConfigPath();
 	// 把老配置里的快捷键补齐 / 换到新默认值。只做一次，靠 common.shortcutSchema 记账
 	void migrateShortcutKeys();

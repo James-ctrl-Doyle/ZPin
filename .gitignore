@@ -29,7 +29,7 @@ Res.aps
 
 # 本机生成的构建工程副本：里面焊着本机绝对路径，由
 # ext/build-support/make_build_project.py 每次构建现场生成
-Src/ScreenCapture.build.vcxproj
+Src/ZPin.build.vcxproj
 
 # —— 运行时数据 ——
 # 程序把 config.json / temp 放在 exe 同目录。exe 正常都在 ext/build 下（已被排除），

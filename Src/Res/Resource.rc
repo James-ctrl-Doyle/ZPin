@@ -30,12 +30,12 @@ BEGIN
         BLOCK "080404b0"
         BEGIN
             VALUE "CompanyName", "James-ctrl-Doyle"
-            VALUE "FileDescription", "ScreenCapture"
+            VALUE "FileDescription", "ZPin"
             VALUE "FileVersion", "2.6.0"
-            VALUE "InternalName", "ScreenCapture.exe"
+            VALUE "InternalName", "ZPin.exe"
             VALUE "LegalCopyright", "Copyright (C) LiuXiaoLun 2023-2026, James-ctrl-Doyle 2026"
-            VALUE "OriginalFilename", "ScreenCapture.exe"
-            VALUE "ProductName", "ScreenCapture"
+            VALUE "OriginalFilename", "ZPin.exe"
+            VALUE "ProductName", "ZPin"
             VALUE "ProductVersion", "2.6.0"
         END
     END

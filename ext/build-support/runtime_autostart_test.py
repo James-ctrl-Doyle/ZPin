@@ -9,7 +9,7 @@ r"""开机自启：注册表行为 + 管理员模式的提权启动。
   B. 自启项不带 --elevate 时：启动后仍是普通权限，不会被莫名提权
   C. 以管理员身份跑一次 → 把"普通版"自启项升级成带提权标记的版本（Setting::syncAutoStartElevation）
 
-⚠ 只碰 HKCU\...\Run\ScreenCapture 这一个值，跑完删掉（并确认恢复原状）。
+⚠ 只碰 HKCU\...\Run\ZPin 这一个值，跑完删掉（并确认恢复原状）。
 """
 import ctypes
 import os
@@ -33,8 +33,8 @@ shell.ShellExecuteW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWST
                                wintypes.LPCWSTR, wintypes.LPCWSTR, ctypes.c_int]
 
 RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
-VALUE = 'ScreenCapture'
-PROC_NAME = 'ScreenCapture.build.exe'
+VALUE = 'ZPin'
+PROC_NAME = 'ZPin.build.exe'
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))

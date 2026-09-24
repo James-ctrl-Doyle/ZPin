@@ -27,7 +27,7 @@ except Exception:
 user32 = ctypes.WinDLL('user32', use_last_error=True)
 k32 = ctypes.windll.kernel32
 
-PROC_NAME = 'ScreenCapture.build.exe'
+PROC_NAME = 'ZPin.build.exe'
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BUILD = os.path.normpath(os.path.join(_HERE, '..', 'build'))
 EXE = os.environ.get('SC_EXE') or os.path.join(_BUILD, 'bin', 'x64', 'Release', PROC_NAME)
@@ -38,7 +38,7 @@ _cfg_guard.install(PORTABLE_CFG)
 
 LOG_DIR = os.path.join(_BUILD, 'logs')
 SHOT = os.path.join(LOG_DIR, 'setting_about.png')
-LINK_TEXT = 'github.com/James-ctrl-Doyle/ScreenCapture'
+LINK_TEXT = 'github.com/James-ctrl-Doyle/ZPin'
 
 WM_APP = 0x8000
 TRAY_MSG = WM_APP + 100
@@ -272,7 +272,7 @@ def main():
             # 浏览器本来就在跑、通过已有实例开新标签页的话不会有新进程 —— 那种情况下
             # 只能靠"注册表里默认浏览器的命令行"间接判断，这里退一步提示人工看一眼
             print('!! 没看到新的浏览器进程（浏览器已在运行时可能只是开了个新标签页，')
-            print('   请人工确认浏览器里是否新开了 github.com/James-ctrl-Doyle/ScreenCapture）')
+            print('   请人工确认浏览器里是否新开了 github.com/James-ctrl-Doyle/ZPin）')
             ok = False
     finally:
         for p in pids_of(PROC_NAME):

@@ -477,7 +477,7 @@ void WinSettingCommon::showSelectBox(Ling::Button* btn)
     lastItem->setHoverColor(0X000000FF);
     lastItem->onClick.add([this](Ling::Button* btn) {
         win->onMouseDown.remove(onMouseDownToken);
-        std::wstring downloadUrl{ L"https://github.com/James-ctrl-Doyle/ScreenCapture/tree/main/Lang" };
+        std::wstring downloadUrl{ L"https://github.com/James-ctrl-Doyle/ZPin/tree/main/Lang" };
         ShellExecute(win->hwnd, L"open", downloadUrl.data(), nullptr, nullptr, SW_SHOWNORMAL);
         win->body->removeChild(selectBox);
         selectBox = nullptr;
