@@ -1,7 +1,7 @@
 name: ling
-version: v1.1.0
-commit: 3fb6d1cbee7391ed5faa23bc42ec3072f2f5b203
-url: https://github.com/James-ctrl-Doyle/Ling/releases/download/v1.1.0/ling-v1.1.0-x64.zip
-sha256: d7a9d64fed873367c2b12fb56dbe16ec4561217a1dcb3b31067a597d3d431f04
+version: v1.2.0
+commit: 1fc5d293e528f376137b11a958fdd6f9c87eb6d5
+url: https://github.com/James-ctrl-Doyle/Ling/releases/download/v1.2.0/ling-v1.2.0-x64.zip
+sha256: 4a2376626c3c108bd29c95a71d9c2f3da1f92b383fc3aa38d84ffb2b86be6545
 mode: package
-installed: 2026-09-26 01:44:44
+installed: 2026-09-26 02:33:04
