@@ -33,6 +33,12 @@ fi
 mkdir -p "$LOGS"
 : > "$SUMMARY"
 
+# 本脚本要用 python 的地方有两处：杀旧实例、生成构建工程副本。
+PY=""
+for c in python python3 py; do
+    if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
+done
+
 # POSIX 路径 -> Windows 路径（MSBuild 只认后者）。没 cygpath 就手工转换兜底
 winpath() {
     if command -v cygpath >/dev/null 2>&1; then
@@ -74,10 +80,6 @@ log ""
 #      所以这里必须每次重新生成；否则新建的仓库第一次就编不过（C1083）。
 #      重新生成也顺带解决"挪过目录 / 改过路径之后副本里还是旧路径"的问题。
 log "########## 0/3  生成构建工程副本 ##########"
-PY=""
-for c in python python3 py; do
-    if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
-done
 if [ -z "$PY" ]; then
     log "!! 找不到 python（生成构建工程副本需要它）"
     log "   替代做法：用 Visual Studio 打开 $ROOT/ZPin.slnx 直接编译"
@@ -93,15 +95,17 @@ log "ok  (python: $PY)"
 log ""
 
 # 产物 exe 正在运行会挡住链接（LNK1104 无法打开文件）；另外用户自己很可能还开着一份
-# 从 ext/build/release/ 起的那份 —— 两份实例抢 F1 热键，回归测试会整片失败
-# （表现为"一半用例过、一半挂"）。所以两种名字都先结束掉。这是开发用的构建脚本，反复手杀太烦。
-# taskkill 本机不可用，用 PowerShell 的 Stop-Process。
-if ps -W 2>/dev/null | grep -qi "ZPin"; then
-    log "--- 检测到正在运行的 ZPin 实例，先结束它 ---"
-    powershell -NoProfile -Command \
-        "Get-Process -Name 'ZPin.build','ZPin' -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:\$false" \
-        >/dev/null 2>&1
-    sleep 1
+# 从 ext/build/release/ 起的那份 —— 两份实例抢 F1 热键，回归测试会整片失败。
+# ⚠ 匹配必须用前缀：release 发布件叫 ZPin_<版本>.exe，进程名 "ZPin_2.6.0" 按精确名
+#   'ZPin' 是杀不到的（2026-09-26 实际踩到）。
+# ⚠ 杀进程走 python（_cfg_guard.kill_running_instances，Toolhelp 快照）而不是
+#   PowerShell：沙箱里 bash 调 powershell 会被安全策略整个拦掉，脚本直接中断 ——
+#   2026-09-26 实测过；测试脚本启动时也走同一个函数杀，两边行为一致。
+if [ -n "$PY" ]; then
+    log "检查并结束正在运行的 ZPin 实例（含 release 版 ZPin_*.exe）"
+    "$PY" -c "import sys; sys.path.insert(0, r'$(winpath "$SCRIPT_DIR")'); import _cfg_guard; _cfg_guard.kill_running_instances()" | tee -a "$SUMMARY"
+else
+    log "!! 找不到 python，跳过杀旧实例（有实例在跑时构建/测试会互相干扰）"
 fi
 
 # Ling 发布包优先（ext/build-support/ling_pkg.sh 装/卸，版本记录在 ling.lock）。

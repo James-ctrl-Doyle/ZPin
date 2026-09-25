@@ -152,7 +152,7 @@ Ling 上游是 [xland/Ling](https://github.com/xland/Ling)（MIT，© 2025 liulu
 | `release.sh` | 把发布件发到 GitHub Releases（打 tag + 建 release + 传 exe）。`--dry-run` 只做本地准备。见下 |
 | `runtime_*_test.py` | 运行时回归测试（截图、绘图、长图、录屏、二维码、快捷键、历史回溯、设置页、放大镜…）。需要先编出 exe，并用 exe 同目录的 `config.json` 做便携配置；脚本会备份/还原你真实的配置 |
 | `_pylibs.py` | 把 `ext/build/.pylibs`（Pillow）挂进 `sys.path`。每个要 `import PIL` 的测试脚本在开头 `import _pylibs` 就行 |
-| `_cfg_guard.py` | 测试用便携配置的备份/还原护栏，防止误写真实 `config.json` |
+| `_cfg_guard.py` | 测试用便携配置的备份/还原护栏，防止误写真实 `config.json`。装护栏时会**先结束正在运行的 ZPin 实例**（含 release 版 `ZPin_*.exe`）—— 程序有单实例检测，老实例活着时测试要么失败、要么在驱动老代码的窗口 |
 | `scroll_target.py` | 造一个可滚动窗口，供长图测试用 |
 | `make_build_project.py` | 生成本机用的构建工程副本（`rebuild_all.sh` 第 0 步会调它） |
 | `render_iconfont.py` | 把 `iconfont.ttf` 的字形渲染成对照图（输出到 `ext/build/`），加图标前用来确认码点存在 |
