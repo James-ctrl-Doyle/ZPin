@@ -35,6 +35,26 @@ cd ext/Ling && git fetch && git checkout <新commit>
 cd ../.. && git add ext/Ling && git commit -m "Ling 升到 <commit>"
 ```
 
+### Ling 发布包（pip 式的版本管理，推荐日常使用）
+
+Ling 的 fork 会把编译好的静态库发布到 GitHub Releases（见下面"关于 Ling"），ZPin 侧用
+`ling_pkg.sh` 安装/切换：
+
+```bash
+bash ext/build-support/ling_pkg.sh install v1.0.0   # 下载并启用该版本
+bash ext/build-support/ling_pkg.sh source           # 卸掉包，回到源码编译（改 Ling 时用）
+bash ext/build-support/ling_pkg.sh status           # 看当前状态
+```
+
+- 装了包之后 `rebuild_all.sh` 会**跳过 yoga/Ling 的源码编译**，直接链接
+  `ext/ling-pkg/current/` 里的 lib（想强制源码编：`LING_FROM_SOURCE=1` 或先 `source`）。
+- 当前用哪个版本记录在仓库根的 **`ling.lock`**（版本 / commit / sha256），包本体
+  （`ext/ling-pkg/`）不进仓库，换机器跑一遍 install 就复原。
+- **包里只有 Release/x64**：编 Debug 配置前请先 `ling_pkg.sh source`，否则 Debug 的 ZPin
+  会链接 Release 的 Ling.lib（运行库不匹配，LNK2038）。要跟进 Ling 源码调试也用 source 模式。
+- 发新包：在 Ling 仓库打 tag → `bash pack_release.sh` → 把 `dist/ling-<版本>-x64.zip`
+  挂到 GitHub Release，然后在 ZPin 里 `ling_pkg.sh install <版本>` 并提交新的 `ling.lock`。
+
 命令行完整重编（含 Ling 与 yoga 从源码重编）：
 
 ```bash
@@ -67,7 +87,8 @@ bash ext/build-support/rebuild_all.sh
 | `mf` `mfreadwrite` `mfplat` `mfuuid` | Media Foundation，录屏编码 |
 | `comctl32` `imm32` `version` `ntdll` `Userenv` | 常规系统库 |
 
-`Yoga.lib` 与 `Ling.lib` 由 `ext/Ling` 现场编译，不是预编译二进制。
+`Yoga.lib` 与 `Ling.lib` 默认由 `ext/Ling` 现场编译；装了 Ling 发布包
+（见上"编译"一节）后直接链接包里的预编译静态库。
 
 ### 用到的 Windows 组件
 
@@ -126,7 +147,8 @@ Ling 上游是 [xland/Ling](https://github.com/xland/Ling)（MIT，© 2025 liulu
 
 | 脚本 | 说明 |
 |---|---|
-| `rebuild_all.sh` | 完整重编（yoga → Ling → ZPin）。构建成功后会另外备一份带版本号的发布件到 `ext/build/release/ZPin_<版本>.exe` |
+| `rebuild_all.sh` | 完整重编（yoga → Ling → ZPin；装了 Ling 发布包时自动跳过前两步）。构建成功后会另外备一份带版本号的发布件到 `ext/build/release/ZPin_<版本>.exe` |
+| `ling_pkg.sh` | Ling 发布包的 install / source / status。版本记录在根目录 `ling.lock`，包本体在 `ext/ling-pkg/`（不进仓库） |
 | `release.sh` | 把发布件发到 GitHub Releases（打 tag + 建 release + 传 exe）。`--dry-run` 只做本地准备。见下 |
 | `runtime_*_test.py` | 运行时回归测试（截图、绘图、长图、录屏、二维码、快捷键、历史回溯、设置页、放大镜…）。需要先编出 exe，并用 exe 同目录的 `config.json` 做便携配置；脚本会备份/还原你真实的配置 |
 | `_pylibs.py` | 把 `ext/build/.pylibs`（Pillow）挂进 `sys.path`。每个要 `import PIL` 的测试脚本在开头 `import _pylibs` 就行 |

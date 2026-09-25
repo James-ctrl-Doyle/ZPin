@@ -31,6 +31,10 @@ Res.aps
 # ext/build-support/make_build_project.py 每次构建现场生成
 Src/ZPin.build.vcxproj
 
+# Ling 发布包（ext/build-support/ling_pkg.sh 下载解压的二进制，不进仓库；
+# 用哪个版本由根目录 ling.lock 记录，换机器跑一遍 install 就复原）
+/ext/ling-pkg/
+
 # —— 运行时数据 ——
 # 程序把 config.json / temp 放在 exe 同目录。exe 正常都在 ext/build 下（已被排除），
 # 这条是给"手工把 exe 拷到别处跑"兜底

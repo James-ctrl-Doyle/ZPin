@@ -32,20 +32,34 @@ bom = raw[:3] == b'\xef\xbb\xbf'
 text = (raw[3:] if bom else raw).decode('utf-8')
 
 pairs = [
-    # 库搜索路径（先换长的，否则会被短的那条先吃掉）
+    # 0) Ling 发布包路径（2026-09-26 起，配合 ext/build-support/ling_pkg.sh）。
+    #    装了包（ext/ling-pkg/current 存在）就优先用它；没装时这两个目录不存在，
+    #    MSBuild 对不存在的搜索路径只是跳过，回落到下面的源码路径。
+    #    ⚠ 必须排在下面两条之前 —— 组合串里含有旧串，被旧串先替换就匹配不到了。
+    (r'$(SolutionDir)ext\ling-pkg\current\x64\$(Configuration);$(SolutionDir)ext\Ling\x64\$(Configuration)',
+     EXT + r'\ling-pkg\current\x64\$(Configuration);' + EXT + r'\Ling\x64\$(Configuration)'),
+    (r'$(SolutionDir)ext\ling-pkg\current;$(SolutionDir)ext\Ling;$(ProjectDir)',
+     EXT + r'\ling-pkg\current;' + EXT + r'\Ling;$(ProjectDir)'),
+    # 1) 兼容：工程还没接 ling-pkg 时（或将来回退）只剩这两条旧串
+    # 库搜索路径
     (r'$(SolutionDir)ext\Ling\x64\$(Configuration)',
      EXT + r'\Ling\x64\$(Configuration)'),
     # 头文件搜索路径：Ling 仓库根（源码里是 #include <include/Ling.h>）
     (r'$(SolutionDir)ext\Ling;$(ProjectDir)',
      EXT + r'\Ling;$(ProjectDir)'),
-    # 中间产物全部放到 build 目录，别落到仓库里
+    # 2) 中间产物全部放到 build 目录，别落到仓库里
     (r'<IntDir>$(SolutionDir)$(Platform)\$(Configuration)Temp\</IntDir>',
      '<IntDir>' + EXT + r'\build\obj\$(Platform)\$(Configuration)\</IntDir>'),
 ]
 
 for old, new in pairs:
     n = text.count(old)
-    assert n > 0, '未匹配到: ' + old
+    if n == 0:
+        # 兼容对允许没有（新工程里已被组合对吃掉）；IntDir 那条永远必须在
+        if 'IntDir' not in old:
+            print('skip (0 hits)  %s' % old[:60])
+            continue
+        raise SystemExit('未匹配到: ' + old)
     text = text.replace(old, new)
     print('replaced x%d  %s' % (n, old[:60]))
 

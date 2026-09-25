@@ -104,6 +104,16 @@ if ps -W 2>/dev/null | grep -qi "ZPin"; then
     sleep 1
 fi
 
+# Ling 发布包优先（ext/build-support/ling_pkg.sh 装/卸，版本记录在 ling.lock）。
+# 装了包就跳过 yoga/Ling 的源码编译 —— lib 直接连 ext/ling-pkg/current 里的；
+# vcxproj 的搜索路径也是包优先（ext\ling-pkg\current 在 ext\Ling 前面），两边一致。
+# 强制从源码编：LING_FROM_SOURCE=1 bash rebuild_all.sh，或 bash ling_pkg.sh source
+if [ -z "${LING_FROM_SOURCE:-}" ] && [ -f "$EXT/ling-pkg/current/x64/Release/Ling.lib" ]; then
+    log "########## Ling 走发布包（ext/ling-pkg/current），跳过 yoga/Ling 编译 ##########"
+    log "（强制源码编译：LING_FROM_SOURCE=1，或 bash ext/build-support/ling_pkg.sh source）"
+    log ""
+else
+
 log "########## 1/3  yoga.lib (Rebuild, Release x64) ##########"
 "$MSB" "$YOGA_PROJ" -p:Configuration=Release -p:Platform=x64 -p:SolutionDir="$LING_DIR" \
     -restore:false -t:Rebuild -m -v:m > "$LOGS/yoga.log" 2>&1
@@ -117,6 +127,8 @@ log "########## 2/3  Ling.lib (Rebuild, Release x64) ##########"
 log "Ling exit=$?"
 grep -cE "error [A-Z]+[0-9]+" "$LOGS/ling.log" | tee -a "$SUMMARY"
 ls -l "$EXT/Ling/x64/Release/" 2>/dev/null | tee -a "$SUMMARY"
+
+fi
 
 log ""
 log "########## 3/3  ZPin (Rebuild, Release x64) ##########"
