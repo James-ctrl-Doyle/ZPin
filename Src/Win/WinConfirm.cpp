@@ -11,10 +11,12 @@ namespace
 	constexpr float titleFont{ 15.f }, textFont{ 13.f };
 	constexpr float gapTitle{ 12.f }, gapBtn{ 18.f };
 	constexpr float btnW{ 88.f }, btnH{ 32.f }, btnGap{ 10.f };
-	// ⚠ 名字别叫 minW / maxW：WinBase 有同名成员（`float w, h, minW{800}, minH{600}`），
-	// 在本类的成员函数里裸写 minW 会解析成**基类那个成员**而不是这里的常量。
+	// ⚠ 文件级常量别叫 w / h / dpi / minW 这类通用短名：WinBase 的公开成员
+	//（`x,y,w,h,dpi`，原 `minW/minH` 已被上游改名 minWPx/minHPx）在派生类成员函数的
+	// 名字查找里优先于命名空间常量，会**静默遮蔽**。
 	// 踩过：clamp(contentW, minW*dpi, maxW*dpi) 实际变成 clamp(x, 800*dpi, 520*dpi)，
-	// 下界比上界还大 → 宽度被钉死在 991.7，弹框一直宽得离谱
+	// 下界比上界还大 → 宽度被钉死在 991.7，弹框一直宽得离谱。
+	// 现在统一加前缀（cardMinW/cardMaxW），写派生类代码时保持这个习惯。
 	constexpr float cardMinW{ 340.f }, cardMaxW{ 520.f };
 }
 
