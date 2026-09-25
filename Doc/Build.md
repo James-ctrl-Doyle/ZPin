@@ -7,7 +7,7 @@
 ├─ Src/                 产品源码（含 quirc 二维码解码、Res 资源）
 ├─ Lang/                界面语言文件（UTF-16LE + BOM）
 ├─ Doc/                 文档与图片
-├─ ext/Ling/            内置的 Ling GUI 框架（含 yoga 布局引擎）
+├─ ext/Ling/            Ling GUI 框架 —— **git submodule**（含 yoga 布局引擎）
 ├─ ext/build-support/   构建脚本 + 运行时回归测试 + 开发小工具
 └─ ZPin.slnx   解决方案
 ```
@@ -16,8 +16,24 @@
 
 ## 编译
 
-用 Visual Studio 打开 `ZPin.slnx` 直接编译即可 —— **Ling 框架已经内置在 `ext/Ling`，
-不需要再单独准备**。工程里引用的是 `$(SolutionDir)ext\Ling`，相对路径，换机器不用改。
+用 Visual Studio 打开 `ZPin.slnx` 直接编译即可。工程里引用的是 `$(SolutionDir)ext\Ling`，
+相对路径，换机器不用改。
+
+⚠ **Ling 是 git submodule**（2026-09-25 起不再把源码内置进本仓库）。clone 之后要先取它：
+
+```bash
+git submodule update --init
+```
+
+否则 `ext/Ling` 是空目录，重编 yoga / Ling 时会找不到 `Ling.vcxproj`。
+（`rebuild_all.sh` 会自动补这条命令 —— 忘了也没关系，它会自己初始化后再编。）
+
+Ling 的版本由 ZPin **钉住某个 commit**（见 `git submodule status`）。要升级：
+
+```bash
+cd ext/Ling && git fetch && git checkout <新commit>
+cd ../.. && git add ext/Ling && git commit -m "Ling 升到 <commit>"
+```
 
 命令行完整重编（含 Ling 与 yoga 从源码重编）：
 
@@ -84,15 +100,25 @@ bash ext/build-support/rebuild_all.sh
 
 这些都不影响最终产物的构建与运行 —— 产物是单个 exe，无外部依赖。
 
-## 关于内置的 Ling
+## 关于 Ling（现在是 submodule）
 
-Ling 原本是独立仓库（[xland/Ling](https://github.com/xland/Ling)）。本仓库把它内置在 `ext/Ling`，
-原因是它只服务于这个项目，内置之后 clone 下来就能编。
+Ling 上游是 [xland/Ling](https://github.com/xland/Ling)（MIT，© 2025 liulun）。
+我们用的是自己的 fork **[James-ctrl-Doyle/Ling](https://github.com/James-ctrl-Doyle/Ling)**，
+另外在开发机上还有一份独立的工作副本 `projects/Ling/`（要改 Ling 时在那里改、推上去）。
 
-- 内置版本：`xland/Ling@b77448ec7e72b1b961d3c6f8f87502d8df72aa5f`
-- 内置方式是**直接复制源码**（`src/ include/ yoga/ demo/ doc/` + 工程文件），并去掉了它自己的 `.git`
-- `ext/Ling/x64/`（编译产物）由 `ext/Ling/.gitignore` 排除
-- 将来要升级 Ling：重新 clone 上游到临时目录，与 `ext/Ling` 对比后手工合并
+**2026-09-25 之前是内置源码**（直接复制进 `ext/Ling` 并去掉它自己的 `.git`），
+改为 **git submodule** 之后：ZPin 只记"钉在哪个 commit"，Ling 的源码不再进本仓库。
+
+- 当前钉住：`8470304`（`git submodule status` 可查）；内置时期的版本是上游 `xland/Ling@b77448e`
+- `ext/Ling/x64/`（编译产物）由 **Ling 自己的** `.gitignore`（`**/x64/**`）排除，不脏两边
+- 升级流程见上面"编译"一节
+
+⚠ **内置时期我们往 Ling 里加过一个 bugfix，改动 Ling 时别丢**：
+`Text::setMaxWidth()` / `Button::setMaxTextWidth()` —— 修的是"设置-关于-项目那一项，
+41 字符的地址从 120px 宽的按钮里画出来、压到窗口边上"。
+背景：Text 建 layout 用 `FLT_MAX`（无约束、永不折行），父节点设多宽都拦不住文字。
+**这个修复已经合并进 fork 仓库**（`8470304`），所以换 submodule 后不会丢 ——
+但将来与上游 `xland/Ling` 合并时，要留意这两个 API 是我们加的，别被覆盖。
 
 ## 开发脚本
 

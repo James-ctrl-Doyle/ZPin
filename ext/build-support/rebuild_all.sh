@@ -19,6 +19,17 @@ ROOT="${SC_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 EXT="$ROOT/ext"
 LOGS="$EXT/build/logs"
 SUMMARY="$EXT/build/summary.txt"
+
+# Ling 是** submodule **（2026-09-25 起不再内置源码）。刚 clone 完 ZPin 时 ext/Ling 是空目录，
+# 直接编 yoga/Ling 会以"找不到 vcxproj"失败。这里自动补上 —— 已经初始化过时这条是空操作。
+if [ ! -f "$EXT/Ling/Ling.vcxproj" ]; then
+    echo "Ling 源码不在（submodule 未初始化）→ git submodule update --init"
+    (cd "$ROOT" && git submodule update --init --recursive) || {
+        echo "!! submodule 初始化失败，构建中止（检查网络与 .gitmodules）"
+        exit 1
+    }
+fi
+
 mkdir -p "$LOGS"
 : > "$SUMMARY"
 
