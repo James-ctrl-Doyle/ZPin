@@ -5,6 +5,7 @@
 #include "WinSetting.h"
 #include "WinSettingCommon.h"
 #include "WinConfirm.h"    // 二次确认用自绘的框，不用系统 MessageBox
+#include "../Tray.h"       // 图标样式切换后让托盘立刻换图
 #include <shellapi.h>   // IsUserAnAdmin / ShellExecuteW（管理员检测与重启）
 
 WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
@@ -19,6 +20,7 @@ WinSettingCommon::WinSettingCommon(Ling::WinBase* parent):Ling::Node(parent)
     initBorderCtrl();
     initSaveCtrls();
     initHistoryCtrl();
+    initIconStyleCtrls();
     auto weakThis = getWeakThis();
     // 这个回调一直挂在窗口上，而本节点可能在窗口关闭之前就被菜单切换换掉了，
     // 所以先确认自己还活着再去碰成员
@@ -335,6 +337,46 @@ void WinSettingCommon::initHistoryCtrl()
         updateHistoryLabel();
     });
     updateHistoryLabel();
+
+    auto border = makeChild<Ling::Node>();
+    border->setHeight(1.f);
+    border->setBg(0xE0E0E0FF);
+}
+
+// 托盘图标样式：彩色版（红蓝底 + 白 Z）/ 简洁版（透明底，只留白 Z）。
+// 点一下在两档之间循环；切换立即生效（托盘当场换图）并写配置，重启保持。
+// exe 文件本身的图标不受影响（嵌在 PE 资源里，运行期改不了）—— 这是 Windows 的边界
+void WinSettingCommon::initIconStyleCtrls()
+{
+    auto box = makeChild<Ling::Node>();
+    box->setHeight(39.f);
+    box->setFlexDirection(Ling::FlexDirection::Row);
+    box->setAlignItems(Ling::Align::Center);
+
+    auto label = box->makeChild<Ling::Label>();
+    label->setText(Lang::get(L"setting.icon"));
+    label->setHeightPercent(100.f);
+    label->setJustifyContent(Ling::Justify::Center);
+    label->setFlexGrow(1.f);
+
+    auto btn = makeOnOffBtn(box);
+    auto applyStyle = [btn](const std::wstring& style) {
+        // 这是"当前值"的展示，不是开/关 —— 不走 styleToggle（那套会把文案
+        // 强行换成"已开启/未开启"），只换文案、颜色保持中性
+        const bool simple = style == L"simple";
+        btn->setText(simple ? Lang::get(L"setting.iconSimple")
+                            : Lang::get(L"setting.iconColor"));
+        btn->setColor(0x333333FF);
+        btn->setHoverColor(0x333333FF);
+        Tray::applyIconStyle(simple);
+    };
+    applyStyle(Setting::get()->getIconStyle());
+    btn->onClick.add([applyStyle](Ling::Button*) {
+        const auto next = Setting::get()->getIconStyle() == L"simple"
+            ? std::wstring{ L"color" } : std::wstring{ L"simple" };
+        Setting::get()->setIconStyle(next);
+        applyStyle(next);
+    });
 
     auto border = makeChild<Ling::Node>();
     border->setHeight(1.f);

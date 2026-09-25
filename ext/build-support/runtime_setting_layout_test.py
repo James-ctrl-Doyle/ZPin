@@ -60,7 +60,8 @@ ROWS = [('autoStart', 39), ('autoStartBorder', 1),
         ('border', 39), ('borderBorder', 1),
         ('saveDir', 39), ('saveDirBorder', 1),
         ('quickSave', 39), ('quickSaveTip', 20), ('quickSaveBorder', 1),
-        ('history', 39), ('historyBorder', 1)]
+        ('history', 39), ('historyBorder', 1),
+        ('iconStyle', 39), ('iconStyleBorder', 1)]   # ← 2026-09-26 新增（最后一行）
 
 EnumProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 MARGIN_L, MARGIN_T, MARGIN_R, MARGIN_B = 20.0, 40.0, 20.0, 20.0

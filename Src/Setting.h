@@ -76,6 +76,10 @@ public:
 	//    用户手动关掉的快捷键，游戏结束也不会被它悄悄打开
 	bool getGameMode();
 	void setGameMode(bool on);
+	// 托盘图标样式：L"color"（彩色版，默认）/ L"simple"（简洁版，白 Z 透明底）。
+	// 存 common.iconStyle；切换后由调用方负责让托盘立刻换图（Ling::App::setTrayIcon）
+	std::wstring getIconStyle();
+	void setIconStyle(const std::wstring& style);
 	std::wstring getLang();
 	void setLang(const std::wstring& lang);
 	// 截图选区的边框粗细（逻辑像素，0 = 不画边框）。乘上 dpi 才是物理像素

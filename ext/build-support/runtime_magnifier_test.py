@@ -342,9 +342,15 @@ def run_round(start, end, tag):
         button(False)
 
         time.sleep(0.8)
-        # C：松手后取景框该收起 —— 还按 B 那块位置判读，十字应当没了
+        # C：松手后进"调整选区"阶段 —— 2026-09-26 起放大镜在该阶段**常驻**跟着光标，
+        # 还按 B 那块位置判读，十字应当还在
         c = probe(grab('%s_C_after_release' % tag), box_b)
-        return a['cross'], a['bbox'], b['cross'], b['bbox'], c['cross'], c['bbox']
+        # D：Esc 关掉截图窗口，十字应当消失（窗口都没了，屏幕上只剩黑色测试窗）
+        user32.keybd_event(0x1B, 0, 0, 0)          # Esc down
+        user32.keybd_event(0x1B, 0, 2, 0)          # Esc up (KEYEVENTF_KEYUP)
+        time.sleep(0.8)
+        d = probe(grab('%s_D_after_esc' % tag), box_b)
+        return a['cross'], a['bbox'], b['cross'], b['bbox'], c['cross'], c['bbox'], d['cross']
     finally:
         try:
             proc.kill()
@@ -357,10 +363,11 @@ def check(start, end, tag, res):
     print('--- 第 %s 轮：%s -> %s ---' % (tag, start, end))
     if res is None:
         return False
-    a_has, a_box, b_has, b_box, c_has, c_box = res
+    a_has, a_box, b_has, b_box, c_has, c_box, d_has = res
     print('A 未按下   : 十字=%-5s 包围盒=%s' % (a_has, a_box))
     print('B 拖动中   : 十字=%-5s 包围盒=%s' % (b_has, b_box))
     print('C 松开后   : 十字=%-5s 包围盒=%s' % (c_has, c_box))
+    print('D Esc 后   : 十字=%-5s' % d_has)
     ok = True
 
     # A：起点处有放大镜（还没按下时就该有，原本就有这个行为）
@@ -393,12 +400,19 @@ def check(start, end, tag, res):
         else:
             print('   ✔ B 取景框落在选区外侧（光标%s）' % ('左上' if want_left else '右下'))
 
-    # C：松开后收起（原有行为，仅作对照）
-    if c_has:
-        print('   !! C 松开后放大镜没收起来（与原有行为不符）')
+    # C：松手后进调整阶段 —— 放大镜在该阶段常驻（2026-09-26 起的新行为）
+    if not c_has:
+        print('   !! C 松手后放大镜不见了 —— 调整阶段应当常驻')
         ok = False
     else:
-        print('   ✔ C 松开后：放大镜已收起')
+        print('   ✔ C 松开后：调整阶段放大镜常驻')
+
+    # D：Esc 关窗后屏幕上不该再有十字
+    if d_has:
+        print('   !! D Esc 后十字还在 —— 截图窗口没关掉？')
+        ok = False
+    else:
+        print('   ✔ D Esc 后：十字已消失')
     return ok
 
 

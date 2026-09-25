@@ -394,8 +394,27 @@ void Setting::setGameMode(bool on)
     // 自己还暂停着就恢复。少一个入口就少一处状态不一致
 }
 
-std::filesystem::path Setting::getTempPath(){
-    // 数据目录下的 temp：截图缓存 last.bin、录屏临时文件、截图历史都放这儿
+std::wstring Setting::getIconStyle()
+{
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    auto style = common ? std::wstring{ common.GetNamedString(L"iconStyle", L"color") } : std::wstring{ L"color" };
+    // 配置被手工改出别的值时回落彩色版，别让托盘图标凭空消失
+    return style == L"simple" ? style : std::wstring{ L"color" };
+}
+
+void Setting::setIconStyle(const std::wstring& style)
+{
+    auto common = configObj.GetNamedObject(L"common", nullptr);
+    if (!common) {
+        common = JsonObject();
+        configObj.SetNamedValue(L"common", common);
+    }
+    common.SetNamedValue(L"iconStyle", JsonValue::CreateStringValue(style));
+    save();
+}
+
+std::filesystem::path Setting::getTempPath()
+{    // 数据目录下的 temp：截图缓存 last.bin、录屏临时文件、截图历史都放这儿
     auto path = dataPath; //复制一份，append 会就地改
     return path.append(L"temp");
 }

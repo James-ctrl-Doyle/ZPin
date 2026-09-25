@@ -146,6 +146,9 @@ private:
 	// 单缓冲会让合成器采到"擦干净还没画完"的中间态
 	Ling::Canvas* canvas{ nullptr };
 	POINT pixPos;
+	// 放大镜最近的避让偏好（拖框/调角时按拖动方向定）。调整阶段的悬停沿用同一侧 ——
+	// 松手后若改用默认（右下），放大镜会立刻翻进刚框好的选区里挡住内容
+	bool pixPreferL{ false }, pixPreferT{ false };
 	// 这次拖框的起点（Select 阶段按下的那一点）。拖框中放大镜往背离选区的方向摆，
 	// 靠它判断光标在起点的哪一侧
 	POINT dragStartPos{ 0, 0 };

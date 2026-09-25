@@ -20,6 +20,7 @@ Tray::Tray()
 {
 	auto lingApp = Ling::App::get();
 	lingApp->initTray(100, L"Screen Capture");
+	applyIconStyle();
 	Setting::get()->initShortcutKeys();
 	// 左键单击 / 双击 都进入截图
 	lingApp->onTrayMouseEvent.add([this](bool isDown, bool isRight) {
@@ -40,6 +41,18 @@ void Tray::init()
 {
 	auto ptr = new Tray();
 	trayIns.reset(ptr);
+}
+
+// 托盘图标按配置换图。资源 ID 与 Resource.rc 对齐：1 = 彩色版、2 = 简洁版（白 Z 透明底）。
+// exe 文件本身的图标永远是彩色版（嵌在 PE 里，运行期改不了），这里管的是托盘那一颗。
+void Tray::applyIconStyle()
+{
+	applyIconStyle(Setting::get()->getIconStyle() == L"simple");
+}
+
+void Tray::applyIconStyle(bool simple)
+{
+	Ling::App::get()->setTrayIcon(simple ? 2 : 1);
 }
 
 Tray* Tray::get()

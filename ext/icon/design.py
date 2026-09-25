@@ -1,6 +1,8 @@
 r"""Z 图标设计源 —— 生成 SVG 文本。
 
-设计：圆角方块底，左半红、右半蓝硬分割；字母 Z 居中，白色骑在中缝上。
+两套变体（设置-通用里可选，托盘图标二选一）：
+  彩色版（z-icon）  ：圆角方块底，左半红、右半蓝硬分割；字母 Z 居中，白色骑在中缝上。
+  简洁版（z-icon-simple）：红蓝底整个去掉（透明），只留白色 Z。
 
 配色不是新定的，取自现有 ZPin logo（Doc/logo.png 采样）：
    红 #FE7974   蓝 #6AAFFD
@@ -9,6 +11,7 @@ import os
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 NAME = 'z-icon'
+SIMPLE_NAME = 'z-icon-simple'
 
 RED, BLUE = '#FE7974', '#6AAFFD'
 RED_HI, RED_LO = '#FF8B85', '#F2635D'
@@ -32,8 +35,17 @@ VIEW = 1024
 RADIUS = 208
 
 
-def build_svg(small=False):
+def build_svg(small=False, simple=False):
     sw = STROKE_SMALL if small else STROKE_NORMAL
+    if simple:
+        # 简洁版：底整个透明，只有白色 Z。小尺寸照用加粗笔画（没有底色衬托，
+        # 深色任务栏上白 Z 依旧靠笔画粗细撑辨识度，规则与彩色版一致）
+        return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"
+     viewBox="0 0 1024 1024">
+  <path d="{Z_PATH}" fill="none" stroke="#FFFFFF" stroke-width="{sw}"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+'''
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"
      viewBox="0 0 1024 1024">
   <defs>
@@ -60,11 +72,12 @@ def build_svg(small=False):
 
 
 def main():
-    for small, suffix in ((False, ''), (True, '-small')):
-        p = os.path.join(ROOT, f'{NAME}{suffix}.svg')
-        with open(p, 'w', encoding='utf-8') as f:
-            f.write(build_svg(small))
-        print('wrote', p)
+    for name, simple in ((NAME, False), (SIMPLE_NAME, True)):
+        for small, suffix in ((False, ''), (True, '-small')):
+            p = os.path.join(ROOT, f'{name}{suffix}.svg')
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write(build_svg(small, simple))
+            print('wrote', p)
 
 
 if __name__ == '__main__':

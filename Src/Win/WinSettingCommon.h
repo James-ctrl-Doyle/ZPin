@@ -20,6 +20,8 @@ private:
   	void initAdminCtrls();
   	// 游戏模式：开着时检测到全屏游戏就自动禁用全局热键（打游戏防误触）
   	void initGameModeCtrls();
+  	// 托盘图标样式：彩色版 / 简洁版二选一循环
+  	void initIconStyleCtrls();
 	void updateSaveDirLabel();
 	void updateHistoryLabel();
 	void setQuickSaveBtn(Ling::Button* btn);

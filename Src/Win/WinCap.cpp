@@ -248,6 +248,8 @@ BOOL WinCap::setCursor()
 // 偏好位置放不下（顶到窗口边）仍然会翻回另一侧，保证它总在屏幕内。
 void WinCap::setPixPos(POINT pos, bool preferLeft, bool preferTop)
 {
+    pixPreferL = preferLeft;   // 记下最近的避让偏好，调整阶段悬停沿用
+    pixPreferT = preferTop;
     auto span{ 10 * dpi };
     auto pixH{ pixImgH + 76.f * dpi };
     if (preferLeft) {
@@ -274,8 +276,9 @@ void WinCap::setPixPos(POINT pos, bool preferLeft, bool preferTop)
 
 void WinCap::getPixImg(POINT pos)
 {
-    // 拖动中（isPress）也要取像：终点和起点一样要能对准（见 onMove）
-    if (stage != CapStage::Select) return;
+    // 拖动中（isPress）也要取像：终点和起点一样要能对准（见 onMove）。
+    // 调整阶段（Adjust）同样要放大镜 —— 挪框/拉角也要对准到像素
+    if (stage != CapStage::Select && stage != CapStage::Adjust) return;
     const long sw = static_cast<long>(srcW), sh = static_cast<long>(srcH);
     const long iw = static_cast<long>(w), ih = static_cast<long>(h);
     // 期望的源矩形：以光标为正中心，可以越出屏幕。
@@ -302,8 +305,9 @@ void WinCap::getPixImg(POINT pos)
 
 void WinCap::paintPix(ID2D1DeviceContext* ctx)
 {
-	// 拖动中也照画（原来按下就收起来，于是"起点能对准、终点看不见"）
-	if (stage != CapStage::Select) return;
+	// 拖动中也照画（原来按下就收起来，于是"起点能对准、终点看不见"）。
+	// 调整阶段同样照画 —— 挪框 / 拉角也要对准（2026-09-26 起）
+	if (stage != CapStage::Select && stage != CapStage::Adjust) return;
     D2D1_RECT_F pixRect{ (float)pixPos.x, (float)pixPos.y, pixPos.x + pixW, pixPos.y + pixImgH + 76.f * dpi };
     ctx->FillRectangle(pixRect, brushBg.Get());
     if (pixSrcRect.right > pixSrcRect.left && pixSrcRect.bottom > pixSrcRect.top) {
@@ -317,16 +321,19 @@ void WinCap::paintPix(ID2D1DeviceContext* ctx)
     }
     ctx->DrawRectangle(pixRect, brushBg.Get(),dpi);
 
-    // 十字的臂半宽。中心留白 = 2×crossWHalf，要它**正好等于一个源像素放大后的大小**
-    // （也就是 scaleNum），这样准星框住的就是光标下那一个像素。
-    // ⚠ 原来写的是 4*dpi（≈4.96），而那时 scaleNum=5 —— 留白 ≈9.9px 能塞下两个源像素，
-    //    于是准星实际框住 2×2=4 个像素，看颜色/对边界时根本分不清取的是哪一个。
-    //    这个量必须跟着 scaleNum 走，不能乘 dpi
+    // 十字的臂半宽。臂厚 = 2×crossWHalf，跟 scaleNum 走、不能乘 dpi（历史教训：
+    //   最早写 4*dpi 而 scaleNum=5，臂缝里能塞下两个源像素，准星分不清取的是哪一个）。
+    // ⚠ 中心"洞"的位置必须对齐到**光标下那个源像素**的格子上，不是简单居中：
+    //   采样窗固定取 wantL = pos.x - srcW/2，所以光标永远落在采样窗第 srcW/2 个
+    //   源像素的**左边缘**上 —— 画出来就是 [pixW/2, pixW/2+scaleNum) 这一个格子。
+    //   若把洞居中在 pixW/2（[pixW/2-scaleNum/2, pixW/2+scaleNum/2)），洞会骑在
+    //   两个源像素的交界上，各露一半 —— 看着就是 2×2 四个像素（2026-09-26 用户实测）。
     const float crossWHalf{ scaleNum * 0.5f };
-    auto crossRect0 = D2D1::RectF(pixPos.x, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x+pixW / 2 - crossWHalf, pixPos.y + pixImgH / 2 + crossWHalf);
-    auto crossRect1 = D2D1::RectF(pixPos.x + pixW / 2 + crossWHalf, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x + pixW, pixPos.y + pixImgH / 2 + crossWHalf);
-    auto crossRect2 = D2D1::RectF(pixPos.x + pixW / 2 - crossWHalf, pixPos.y, pixPos.x + pixW / 2 + crossWHalf, pixPos.y + pixImgH / 2 - crossWHalf);
-    auto crossRect3 = D2D1::RectF(pixPos.x + pixW / 2 - crossWHalf, pixPos.y+pixImgH / 2 + crossWHalf, pixPos.x + pixW / 2 + crossWHalf, pixPos.y + pixImgH);
+    const float px{ scaleNum };
+    auto crossRect0 = D2D1::RectF(pixPos.x, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x+pixW / 2, pixPos.y + pixImgH / 2 + crossWHalf);
+    auto crossRect1 = D2D1::RectF(pixPos.x + pixW / 2 + px, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x + pixW, pixPos.y + pixImgH / 2 + crossWHalf);
+    auto crossRect2 = D2D1::RectF(pixPos.x + pixW / 2 - crossWHalf, pixPos.y, pixPos.x + pixW / 2 + crossWHalf, pixPos.y + pixImgH / 2);
+    auto crossRect3 = D2D1::RectF(pixPos.x + pixW / 2 - crossWHalf, pixPos.y+pixImgH / 2 + px, pixPos.x + pixW / 2 + crossWHalf, pixPos.y + pixImgH);
 
     ctx->FillRectangle(crossRect0, crossBrush.Get());
     ctx->FillRectangle(crossRect1, crossBrush.Get());
@@ -558,6 +565,11 @@ void WinCap::onDown(POINT pos, bool isRight)
         isPress = true;
         dragStartPos = pos;
         cutMask->startMakeRect(pos);
+        // 拖框期间抓住鼠标：快速拖到屏幕边缘会触发 WM_MOUSELEAVE，Ling 的
+        // mouseLeave 会拿 {INT_MAX,INT_MAX} 来调 onMove，框选和调整都会被
+        // clamp 到右下角（2026-09-26 用户实测"框闪到屏幕最右下角"）。
+        // 抓住之后 leave 不来、move 也不会断，是根治；哨兵防护是兜底。
+        SetCapture(hwnd);
         // 放大镜在拖动过程中一直留着（原来按下就收起来了），按下这一下先刷一次，
         // 免得要等鼠标动了它才重新出现
         refresh();
@@ -575,13 +587,21 @@ void WinCap::onDown(POINT pos, bool isRight)
         }
         // 选区外面按下不是重新框选，而是按落点所在的那一块调对应的边或角
         isPress = true;
+        dragStartPos = pos;   // 放大镜摆向靠它判断拖动方向（与 Select 同款）
         cutMask->startAdjust(pos);
+        SetCapture(hwnd);
         layoutTools();
+        refresh();   // 调整阶段放大镜也常驻，按下先刷出来
     }
 }
 
 void WinCap::onMove(POINT pos)
 {
+    // Ling 的 mouseLeave 用 {INT_MAX,INT_MAX} 当哨兵。调整选区时收到它等于
+    // "把选区夹到右下角"，直接忽略（拖框期间已 SetCapture，正常不会收到；
+    // 这是给没抓住时的兜底）
+    if (pos.x == INT_MAX || pos.y == INT_MAX) return;
+
     // 编辑文本时鼠标交给 TextBox，别让 hoverShapeAt 去画夹点、换光标
     if (editingText && textBox && textBox->isPosIn(pos)) return;
 
@@ -608,10 +628,17 @@ void WinCap::onMove(POINT pos)
             return;
         }
         if (!isPress) {
-            // 没按下时给画笔一点悬停反馈（夹点、光标）
+            // 没按下时给画笔一点悬停反馈（夹点、光标）；
+            // 放大镜调整阶段常驻，跟着光标走，避让方向沿用拖角时那一侧
             if (hasTool()) hoverShapeAt(pos);
+            getPixImg(pos);
+            setPixPos(pos, pixPreferL, pixPreferT);
+            refresh();
             return;
         }
+        getPixImg(pos);
+        // 放大镜摆到拖动方向的反侧，别压住正在调的选区
+        setPixPos(pos, pos.x < dragStartPos.x, pos.y < dragStartPos.y);
         cutMask->adjust(pos);
         // 选区变了，整组工具条跟着走位
         layoutTools();
@@ -623,8 +650,12 @@ void WinCap::onMove(POINT pos)
 
 void WinCap::onUp(POINT pos, bool isRight)
 {
+    auto releaseIfCaptured = [this]() {
+        if (GetCapture() == hwnd) ReleaseCapture();
+    };
     if (stage == CapStage::Select) {
         isPress = false;
+        releaseIfCaptured();
         // 只是点了一下，又没吸附到任何窗口，那就接着让用户框
         if (!cutMask->hasRect()) return;
         // 命令行指定了直奔某个阶段：它比下面 Ctrl 那条钉图的快捷路径更优先 ——
@@ -636,7 +667,7 @@ void WinCap::onUp(POINT pos, bool isRight)
             return;
         }
         stage = CapStage::Adjust;
-        refresh();  // 收掉放大镜
+        refresh();  // 进调整阶段：放大镜继续留在这个阶段常驻
         makeTools();
     }
     else if (stage == CapStage::Adjust) {
@@ -647,6 +678,7 @@ void WinCap::onUp(POINT pos, bool isRight)
             return;
         }
         isPress = false;
+        releaseIfCaptured();
     }
     else if (stage == CapStage::Long && capLong) {
         capLong->onUp(pos);
