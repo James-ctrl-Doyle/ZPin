@@ -7,73 +7,56 @@
 ├─ Src/                 产品源码（含 quirc 二维码解码、Res 资源）
 ├─ Lang/                界面语言文件（UTF-16LE + BOM）
 ├─ Doc/                 文档与图片
-├─ ext/Ling/            Ling GUI 框架 —— **git submodule**（含 yoga 布局引擎）
-├─ ext/build-support/   构建脚本 + 运行时回归测试 + 开发小工具
+├─ build-support/       构建脚本 + 运行时回归测试 + 开发小工具
+├─ icon/                图标设计源（design.py 真源 → build.py 出图 → Doc/ 成品）
 └─ ZPin.slnx   解决方案
 ```
 
-所有编译产物统一落在 `ext/build/`（已由 `.gitignore` 排除），不会污染源码目录。
+所有编译产物统一落在 `build/`（已由 `.gitignore` 排除），不会污染源码目录。
+（2026-09-26 目录重组：原 `ext/` 层拆平、`_attic/` 归档区删除——历史去 git 历史里找。）
 
 ## 编译
 
-用 Visual Studio 打开 `ZPin.slnx` 直接编译即可。工程里引用的是 `$(SolutionDir)ext\Ling`，
-相对路径，换机器不用改。
+用 Visual Studio 打开 `ZPin.slnx` 直接编译即可（工程里 Ling 的引用是 `__LING_ROOT__`
+占位符，要经过 `make_build_project.py` 烘成绝对路径，见下）。
 
-⚠ **Ling 是 git submodule**（2026-09-25 起不再把源码内置进本仓库）。clone 之后要先取它：
+### Ling 的引用（与 ZDock 同一套，2026-09-26 起）
 
-```bash
-git submodule update --init
-```
+Ling 不再是 submodule、也没有 ling_pkg/ling.lock 机制，按**路径优先级**解析（和
+ZDock 的 `build.sh` 完全一致）：
 
-否则 `ext/Ling` 是空目录，重编 yoga / Ling 时会找不到 `Ling.vcxproj`。
-（`rebuild_all.sh` 会自动补这条命令 —— 忘了也没关系，它会自己初始化后再编。）
+1. 环境变量 `LING_ROOT`
+2. `../Ling/dist/ling-v1.3.1-x64` —— Ling 仓库的**发布包**（`include/` + `x64/Release`）
+3. `../Ling` —— Ling **源码树**（ZPin 的兄弟目录，改 Ling 时在那里改、推它的仓库）
 
-Ling 的版本由 ZPin **钉住某个 commit**（见 `git submodule status`）。要升级：
+- 解析到发布包：`rebuild_all.sh` **跳过 yoga/Ling 的源码编译**，直接链接包里的 lib
+  （强制走源码：`LING_FROM_SOURCE=1 bash rebuild_all.sh`）。
+- 解析到源码树：现场把 yoga/Ling 编进源码树自己的 `x64/Release/`，ZPin 链那份。
+- **包里只有 Release/x64**：编 Debug 前请用源码模式，否则 Debug 的 ZPin 链 Release 的
+  Ling.lib（运行库不匹配，LNK2038）。要跟进 Ling 源码调试也用源码模式。
+- 发新包 / 升级：在 Ling 仓库打 tag → `bash pack_release.sh` → 挂到 GitHub Release，
+  然后把 `rebuild_all.sh` / `make_build_project.py` 里的 `ling-v<版本>-x64` 改成新版本号。
 
-```bash
-cd ext/Ling && git fetch && git checkout <新commit>
-cd ../.. && git add ext/Ling && git commit -m "Ling 升到 <commit>"
-```
-
-### Ling 发布包（pip 式的版本管理，推荐日常使用）
-
-Ling 的 fork 会把编译好的静态库发布到 GitHub Releases（见下面"关于 Ling"），ZPin 侧用
-`ling_pkg.sh` 安装/切换：
+命令行完整重编：
 
 ```bash
-bash ext/build-support/ling_pkg.sh install v1.0.0   # 下载并启用该版本
-bash ext/build-support/ling_pkg.sh source           # 卸掉包，回到源码编译（改 Ling 时用）
-bash ext/build-support/ling_pkg.sh status           # 看当前状态
+bash build-support/rebuild_all.sh
 ```
 
-- 装了包之后 `rebuild_all.sh` 会**跳过 yoga/Ling 的源码编译**，直接链接
-  `ext/ling-pkg/current/` 里的 lib（想强制源码编：`LING_FROM_SOURCE=1` 或先 `source`）。
-- 当前用哪个版本记录在仓库根的 **`ling.lock`**（版本 / commit / sha256），包本体
-  （`ext/ling-pkg/`）不进仓库，换机器跑一遍 install 就复原。
-- **包里只有 Release/x64**：编 Debug 配置前请先 `ling_pkg.sh source`，否则 Debug 的 ZPin
-  会链接 Release 的 Ling.lib（运行库不匹配，LNK2038）。要跟进 Ling 源码调试也用 source 模式。
-- 发新包：在 Ling 仓库打 tag → `bash pack_release.sh` → 把 `dist/ling-<版本>-x64.zip`
-  挂到 GitHub Release，然后在 ZPin 里 `ling_pkg.sh install <版本>` 并提交新的 `ling.lock`。
+脚本会自动：① 用 `build-support/make_build_project.py` 生成构建用的工程副本
+`Src/ZPin.build.vcxproj`（把 `__LING_ROOT__` 烘成绝对路径）；② 用 `vswhere` 定位 MSBuild；
+③ Ling 走包就只编 ZPin，走源码则先 yoga → Ling → ZPin。日志写到 `build/logs/`。
+可用环境变量覆盖：`MSBUILD`、`SC_ROOT`、`LING_ROOT`、`LING_FROM_SOURCE`。
 
-命令行完整重编（含 Ling 与 yoga 从源码重编）：
-
-```bash
-bash ext/build-support/rebuild_all.sh
-```
-
-脚本会自动：① 用 `ext/build-support/make_build_project.py` 生成构建用的工程副本
-`Src/ZPin.build.vcxproj`；② 用 `vswhere` 定位 MSBuild；③ 依次重编 yoga → Ling → ZPin，
-日志写到 `ext/build/logs/`。可用环境变量覆盖：`MSBUILD`（MSBuild.exe 路径）、`SC_ROOT`（项目根）。
-
-产物：`ext/build/bin/x64/Release/ZPin.build.exe`
+产物：`build/bin/x64/Release/ZPin.build.exe`
 
 > ⚠ 上面那条命令需要 **Python 3**（只用来生成工程副本，不需要安装任何 Python 包）。
 > 没有 Python 的话，用 Visual Studio 打开 `ZPin.slnx` 编译，效果一样。
 >
 > 为什么要生成副本：不经过 `.slnx` 直接编 `.vcxproj` 时 `$(SolutionDir)` 是空的，
-> 工程里的 `$(SolutionDir)ext\Ling` 解析不出来，会报
-> `C1083: 无法打开包括文件 "include/Ling.h"`。副本把 Ling 的路径换成绝对路径，
-> 并把 `IntDir`/`OutDir` 引到 `ext/build/` 下、不落进仓库。
+> 工程里的 `__LING_ROOT__` 占位符解析不出来，会报
+> `C1083: 无法打开包括文件 "include/Ling.h"`。副本把占位符烘成 Ling 的绝对路径，
+> 并把 `IntDir`/`OutDir` 引到 `build/` 下、不落进仓库。
 > 这个副本是本机生成的，**不进仓库** —— 所以每次构建都要重新生成（脚本已经替你做掉了）。
 
 ## 依赖
@@ -87,8 +70,8 @@ bash ext/build-support/rebuild_all.sh
 | `mf` `mfreadwrite` `mfplat` `mfuuid` | Media Foundation，录屏编码 |
 | `comctl32` `imm32` `version` `ntdll` `Userenv` | 常规系统库 |
 
-`Yoga.lib` 与 `Ling.lib` 默认由 `ext/Ling` 现场编译；装了 Ling 发布包
-（见上"编译"一节）后直接链接包里的预编译静态库。
+`Yoga.lib` 与 `Ling.lib` 默认来自 Ling 发布包（见上"编译"一节）；没有包时
+由 `../Ling` 源码树现场编译。
 
 ### 用到的 Windows 组件
 
@@ -105,8 +88,8 @@ bash ext/build-support/rebuild_all.sh
 | 位置 | 组件 | 许可 | 用途 |
 |---|---|---|---|
 | `Src/quirc/` | [quirc](https://github.com/dlbeer/quirc) 二维码解码 | ISC（© 2010-2012 Daniel Beer） | 二维码识别 |
-| `Src/Win/VideoMp4.hpp` | Media Foundation 录屏封装（单头文件） | 文件内**没有版权声明**，随上游仓库带入 —— 建议确认后补上出处 | 录屏出 MP4 |
-| `ext/Ling/` | Ling GUI 框架 + [yoga](https://github.com/facebook/yoga) 布局引擎 | Ling 为 MIT（© 2025 liulun），yoga 见 `ext/Ling/yoga/LICENSE` | 界面与布局 |
+| `Src/VideoMp4.hpp` | Media Foundation 录屏封装（单头文件） | 文件内**没有版权声明**，随上游仓库带入 —— 建议确认后补上出处 | 录屏出 MP4 |
+| `../Ling/`（仓库外） | Ling GUI 框架 + [yoga](https://github.com/facebook/yoga) 布局引擎 | Ling 为 MIT（© 2025 liulun），yoga 许可见其 `yoga/LICENSE` | 界面与布局 |
 | `Src/Res/iconfont.ttf` | 工具栏图标字体（30 个字形） | 字体文件内未内嵌许可声明 —— 若来自 iconfont.cn 等站点，商用前建议确认授权 | 工具条图标 |
 
 上游项目自身的许可见仓库根 `LICENSE`。
@@ -115,8 +98,8 @@ bash ext/build-support/rebuild_all.sh
 
 | 依赖 | 用途 |
 |---|---|
-| Python 3 | 运行 `ext/build-support/runtime_*_test.py` 这组回归测试 |
-| [Pillow](https://python-pillow.org/) | 测试里要读屏幕像素、比图。装在 `ext/build/.pylibs`（**不进仓库**）：`python -m pip install --target ext/build/.pylibs pillow`。测试脚本通过同目录的 `_pylibs.py` 挂载它，不依赖环境里的全局包 |
+| Python 3 | 运行 `build-support/runtime_*_test.py` 这组回归测试 |
+| [Pillow](https://python-pillow.org/) | 测试里要读屏幕像素、比图。装在 `build/.pylibs`（**不进仓库**）：`python -m pip install --target build/.pylibs pillow`。测试脚本通过同目录的 `_pylibs.py` 挂载它，不依赖环境里的全局包 |
 | Visual Studio 2026 | 编译（含 C++ 桌面开发组件与 Windows SDK） |
 
 这些都不影响最终产物的构建与运行 —— 产物是单个 exe，无外部依赖。

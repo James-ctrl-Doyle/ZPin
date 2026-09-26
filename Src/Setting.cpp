@@ -5,8 +5,8 @@
 #include "Setting.h"
 #include "Util.h"
 #include "Lang.h"
-#include "Win/WinCap.h"
-#include "Win/WinPin.h"
+#include "WinCap.h"
+#include "WinPin.h"
 #include "App.h"
 
 namespace {

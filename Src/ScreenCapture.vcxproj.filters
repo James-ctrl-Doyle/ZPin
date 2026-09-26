@@ -39,67 +39,67 @@
     <ClCompile Include="Tray.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\WinSetting.cpp">
+    <ClCompile Include="WinSetting.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\WinSettingCommon.cpp">
+    <ClCompile Include="WinSettingCommon.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\WinSettingShortcut.cpp">
+    <ClCompile Include="WinSettingShortcut.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\WinSettingAbout.cpp">
+    <ClCompile Include="WinSettingAbout.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\WinCap.cpp">
+    <ClCompile Include="WinCap.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\WinPin.cpp">
+    <ClCompile Include="WinPin.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Tool\ToolMain.cpp">
+    <ClCompile Include="ToolMain.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Tool\ToolSub.cpp">
+    <ClCompile Include="ToolSub.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeBase.cpp">
+    <ClCompile Include="ShapeBase.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeRect.cpp">
+    <ClCompile Include="ShapeRect.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="History.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeEllipse.cpp">
+    <ClCompile Include="ShapeEllipse.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeLine.cpp">
+    <ClCompile Include="ShapeLine.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeText.cpp">
+    <ClCompile Include="ShapeText.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeNumber.cpp">
+    <ClCompile Include="ShapeNumber.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeArrow.cpp">
+    <ClCompile Include="ShapeArrow.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeMosaic.cpp">
+    <ClCompile Include="ShapeMosaic.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Shape\ShapeEraser.cpp">
+    <ClCompile Include="ShapeEraser.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Tool\ToolCap.cpp">
+    <ClCompile Include="ToolCap.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Tool\ToolLong.cpp">
+    <ClCompile Include="ToolLong.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Tool\ToolVideo.cpp">
+    <ClCompile Include="ToolVideo.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Update.cpp">
@@ -120,13 +120,13 @@
     <ClCompile Include="quirc\version_db.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\CutMask.cpp">
+    <ClCompile Include="CutMask.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\CapLong.cpp">
+    <ClCompile Include="CapLong.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Win\CapVideo.cpp">
+    <ClCompile Include="CapVideo.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -162,67 +162,67 @@
     <ClInclude Include="Tray.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\WinSetting.h">
+    <ClInclude Include="WinSetting.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\WinSettingCommon.h">
+    <ClInclude Include="WinSettingCommon.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\WinSettingShortcut.h">
+    <ClInclude Include="WinSettingShortcut.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\WinSettingAbout.h">
+    <ClInclude Include="WinSettingAbout.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\WinCap.h">
+    <ClInclude Include="WinCap.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\WinPin.h">
+    <ClInclude Include="WinPin.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Tool\ToolMain.h">
+    <ClInclude Include="ToolMain.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Tool\ToolSub.h">
+    <ClInclude Include="ToolSub.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeBase.h">
+    <ClInclude Include="ShapeBase.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeRect.h">
+    <ClInclude Include="ShapeRect.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="History.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeNumber.h">
+    <ClInclude Include="ShapeNumber.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeEllipse.h">
+    <ClInclude Include="ShapeEllipse.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeLine.h">
+    <ClInclude Include="ShapeLine.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeText.h">
+    <ClInclude Include="ShapeText.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeArrow.h">
+    <ClInclude Include="ShapeArrow.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeMosaic.h">
+    <ClInclude Include="ShapeMosaic.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Shape\ShapeEraser.h">
+    <ClInclude Include="ShapeEraser.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Tool\ToolCap.h">
+    <ClInclude Include="ToolCap.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Tool\ToolLong.h">
+    <ClInclude Include="ToolLong.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Tool\ToolVideo.h">
+    <ClInclude Include="ToolVideo.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Update.h">
@@ -237,16 +237,16 @@
     <ClInclude Include="quirc\quirc_internal.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\CutMask.h">
+    <ClInclude Include="CutMask.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\CapLong.h">
+    <ClInclude Include="CapLong.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\CapVideo.h">
+    <ClInclude Include="CapVideo.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Win\VideoMp4.hpp">
+    <ClInclude Include="VideoMp4.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

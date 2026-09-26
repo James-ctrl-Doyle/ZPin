@@ -6,10 +6,10 @@
 #include "Tray.h"
 #include "Lang.h"
 #include "Update.h"
-#include "./Win/WinCap.h"
-#include "./Win/WinPin.h"
-#include "./Win/WinSetting.h"
-#include "./Win/WinConfirm.h"
+#include "WinCap.h"
+#include "WinPin.h"
+#include "WinSetting.h"
+#include "WinConfirm.h"
 
 std::unique_ptr<App> app;
 

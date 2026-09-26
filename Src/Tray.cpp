@@ -2,9 +2,9 @@
 #include "Tray.h"
 #include "App.h"
 #include "Lang.h"
-#include "Win/WinCap.h"
-#include "Win/WinPin.h"
-#include "Win/WinSetting.h"
+#include "WinCap.h"
+#include "WinPin.h"
+#include "WinSetting.h"
 #include "Setting.h"
 
 namespace {

@@ -1,7 +1,7 @@
 # —— 编译产物 ——
-# 构建输出统一落在 ext/build/（exe、中间产物、日志、发布件、测试依赖都在这儿），
+# 构建输出统一落在 build/（exe、中间产物、日志、发布件、测试依赖都在这儿），
 # 整个目录都不进仓库。见 Doc/Build.md
-/ext/build/
+/build/
 **/x64/
 **/Release/
 **/Debug/
@@ -28,12 +28,8 @@ Src/Res/Resource.aps
 Res.aps
 
 # 本机生成的构建工程副本：里面焊着本机绝对路径，由
-# ext/build-support/make_build_project.py 每次构建现场生成
+# build-support/make_build_project.py 每次构建现场生成
 Src/ZPin.build.vcxproj
-
-# Ling 发布包（ext/build-support/ling_pkg.sh 下载解压的二进制，不进仓库；
-# 用哪个版本由根目录 ling.lock 记录，换机器跑一遍 install 就复原）
-/ext/ling-pkg/
 
 # —— 运行时数据 ——
 # 程序把 config.json / temp 放在 exe 同目录。exe 正常都在 ext/build 下（已被排除），
@@ -41,26 +37,24 @@ Src/ZPin.build.vcxproj
 config.json
 /temp/
 
-# —— 图标设计工具（ext/icon/）——
-# ext/icon/design.py 是唯一真源，`python build.py` 重建一切。
+# —— 图标设计工具（icon/）——
+# icon/design.py 是唯一真源，`python build.py` 重建一切。
 #   _review/        各档 PNG、ICO、SVG、预览图 —— 全是过程产物，可重建，整个排除
 #   _tasks.json     render_all.js 的作业单，里面写死本机绝对路径，每次重建重写
 # 要进仓库的成品由 build.py 末尾的 publish() 送到 Doc/ 下（那两个**不**排除）：
 #   Doc/logo.png  512 设计稿          Doc/logo.ico  ← Src/Res/Resource.rc 指向它
-/ext/icon/_tasks.json
-/ext/icon/_review/
+/icon/_tasks.json
+/icon/_review/
 
 # —— 本地目录：下划线开头的一律不进仓库 ——
-# 约定：所有只是本机用、不该进仓库的目录都以下划线开头，统一归到 _attic/ 下
-#   _attic/              归档区（过期脚本、改代码前的备份、删功能时留的档、Ling 内置前
-#                        挪出来的上游 .git、撤销的 _review 等）
-# 一条通配覆盖全部，以后新加同类目录不用再改这里。
+# 约定：只是本机用、不该进仓库的目录/文件都以下划线开头（2026-09-26 起 _attic 归档区
+# 已整体删除，历史去 git 历史里找）。一条通配覆盖全部，新加同类不用再改这里。
 # ⚠ 副作用：确实需要进仓库的目录别用下划线开头。
 /_*/
 
 # —— 开发工具的本地环境 ——
-# Pillow 等测试依赖装在 ext/build/.pylibs（ext/build 上面已排除），
-# 测试脚本通过 ext/build-support/_pylibs.py 显式挂载，不依赖环境里的全局包。
-# 装法：python -m pip install --target ext/build/.pylibs pillow
+# Pillow 等测试依赖装在 build/.pylibs（build/ 上面已排除），
+# 测试脚本通过 build-support/_pylibs.py 显式挂载，不依赖环境里的全局包。
+# 装法：python -m pip install --target build/.pylibs pillow
 __pycache__/
 *.pyc

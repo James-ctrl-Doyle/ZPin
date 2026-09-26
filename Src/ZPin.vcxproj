@@ -117,7 +117,7 @@
       <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)ext\ling-pkg\current;$(SolutionDir)ext\Ling;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>__LING_ROOT__;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -127,7 +127,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)ext\ling-pkg\current\x64\$(Configuration);$(SolutionDir)ext\Ling\x64\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>__LING_ROOT__\x64\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>dwmapi.lib;windowsapp.lib;comctl32.lib;imm32.lib;version.lib;mf.lib;mfreadwrite.lib;mfplat.lib;mfuuid.lib;ntdll.lib;Userenv.lib;Yoga.lib;Ling.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
@@ -144,7 +144,7 @@
       <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)ext\ling-pkg\current;$(SolutionDir)ext\Ling;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>__LING_ROOT__;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -153,7 +153,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)ext\ling-pkg\current\x64\$(Configuration);$(SolutionDir)ext\Ling\x64\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>__LING_ROOT__\x64\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>dwmapi.lib;windowsapp.lib;comctl32.lib;imm32.lib;version.lib;mf.lib;mfreadwrite.lib;mfplat.lib;mfuuid.lib;ntdll.lib;Userenv.lib;Yoga.lib;Ling.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
@@ -172,20 +172,20 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Setting.cpp" />
-    <ClCompile Include="Shape\ShapeArrow.cpp" />
-    <ClCompile Include="Shape\ShapeBase.cpp" />
-    <ClCompile Include="Shape\ShapeEllipse.cpp" />
-    <ClCompile Include="Shape\ShapeEraser.cpp" />
-    <ClCompile Include="Shape\ShapeLine.cpp" />
-    <ClCompile Include="Shape\ShapeMosaic.cpp" />
-    <ClCompile Include="Shape\ShapeNumber.cpp" />
-    <ClCompile Include="Shape\ShapeRect.cpp" />
-    <ClCompile Include="Shape\ShapeText.cpp" />
-    <ClCompile Include="Tool\ToolHost.cpp" />
-    <ClCompile Include="Tool\ToolLong.cpp" />
-    <ClCompile Include="Tool\ToolSub.cpp" />
-    <ClCompile Include="Tool\ToolMain.cpp" />
-    <ClCompile Include="Tool\ToolVideo.cpp" />
+    <ClCompile Include="ShapeArrow.cpp" />
+    <ClCompile Include="ShapeBase.cpp" />
+    <ClCompile Include="ShapeEllipse.cpp" />
+    <ClCompile Include="ShapeEraser.cpp" />
+    <ClCompile Include="ShapeLine.cpp" />
+    <ClCompile Include="ShapeMosaic.cpp" />
+    <ClCompile Include="ShapeNumber.cpp" />
+    <ClCompile Include="ShapeRect.cpp" />
+    <ClCompile Include="ShapeText.cpp" />
+    <ClCompile Include="ToolHost.cpp" />
+    <ClCompile Include="ToolLong.cpp" />
+    <ClCompile Include="ToolSub.cpp" />
+    <ClCompile Include="ToolMain.cpp" />
+    <ClCompile Include="ToolVideo.cpp" />
     <ClCompile Include="Tip.cpp" />
     <ClCompile Include="Toast.cpp" />
     <ClCompile Include="Tray.cpp" />
@@ -211,16 +211,16 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
       <PreprocessorDefinitions>QUIRC_MAX_REGIONS=65534;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
-    <ClCompile Include="Win\CutMask.cpp" />
-    <ClCompile Include="Win\CapLong.cpp" />
-    <ClCompile Include="Win\WinPin.cpp" />
-    <ClCompile Include="Win\WinCap.cpp" />
-    <ClCompile Include="Win\WinSettingAbout.cpp" />
-    <ClCompile Include="Win\WinSettingCommon.cpp" />
-    <ClCompile Include="Win\WinSetting.cpp" />
-    <ClCompile Include="Win\WinSettingShortcut.cpp" />
-    <ClCompile Include="Win\WinConfirm.cpp" />
-    <ClCompile Include="Win\CapVideo.cpp" />
+    <ClCompile Include="CutMask.cpp" />
+    <ClCompile Include="CapLong.cpp" />
+    <ClCompile Include="WinPin.cpp" />
+    <ClCompile Include="WinCap.cpp" />
+    <ClCompile Include="WinSettingAbout.cpp" />
+    <ClCompile Include="WinSettingCommon.cpp" />
+    <ClCompile Include="WinSetting.cpp" />
+    <ClCompile Include="WinSettingShortcut.cpp" />
+    <ClCompile Include="WinConfirm.cpp" />
+    <ClCompile Include="CapVideo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Res\Resource.rc" />
@@ -235,20 +235,20 @@
     <ClInclude Include="Ocr.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Setting.h" />
-    <ClInclude Include="Shape\ShapeArrow.h" />
-    <ClInclude Include="Shape\ShapeBase.h" />
-    <ClInclude Include="Shape\ShapeEllipse.h" />
-    <ClInclude Include="Shape\ShapeEraser.h" />
-    <ClInclude Include="Shape\ShapeLine.h" />
-    <ClInclude Include="Shape\ShapeMosaic.h" />
-    <ClInclude Include="Shape\ShapeNumber.h" />
-    <ClInclude Include="Shape\ShapeRect.h" />
-    <ClInclude Include="Shape\ShapeText.h" />
-    <ClInclude Include="Tool\ToolHost.h" />
-    <ClInclude Include="Tool\ToolLong.h" />
-    <ClInclude Include="Tool\ToolSub.h" />
-    <ClInclude Include="Tool\ToolMain.h" />
-    <ClInclude Include="Tool\ToolVideo.h" />
+    <ClInclude Include="ShapeArrow.h" />
+    <ClInclude Include="ShapeBase.h" />
+    <ClInclude Include="ShapeEllipse.h" />
+    <ClInclude Include="ShapeEraser.h" />
+    <ClInclude Include="ShapeLine.h" />
+    <ClInclude Include="ShapeMosaic.h" />
+    <ClInclude Include="ShapeNumber.h" />
+    <ClInclude Include="ShapeRect.h" />
+    <ClInclude Include="ShapeText.h" />
+    <ClInclude Include="ToolHost.h" />
+    <ClInclude Include="ToolLong.h" />
+    <ClInclude Include="ToolSub.h" />
+    <ClInclude Include="ToolMain.h" />
+    <ClInclude Include="ToolVideo.h" />
     <ClInclude Include="Tip.h" />
     <ClInclude Include="Toast.h" />
     <ClInclude Include="Tray.h" />
@@ -256,17 +256,17 @@
     <ClInclude Include="Util.h" />
     <ClInclude Include="quirc\quirc.h" />
     <ClInclude Include="quirc\quirc_internal.h" />
-    <ClInclude Include="Win\CutMask.h" />
-    <ClInclude Include="Win\CapLong.h" />
-    <ClInclude Include="Win\WinPin.h" />
-    <ClInclude Include="Win\WinCap.h" />
-    <ClInclude Include="Win\WinSettingAbout.h" />
-    <ClInclude Include="Win\WinSettingCommon.h" />
-    <ClInclude Include="Win\WinSetting.h" />
-    <ClInclude Include="Win\WinSettingShortcut.h" />
-    <ClInclude Include="Win\WinConfirm.h" />
-    <ClInclude Include="Win\CapVideo.h" />
-    <ClInclude Include="Win\VideoMp4.hpp" />
+    <ClInclude Include="CutMask.h" />
+    <ClInclude Include="CapLong.h" />
+    <ClInclude Include="WinPin.h" />
+    <ClInclude Include="WinCap.h" />
+    <ClInclude Include="WinSettingAbout.h" />
+    <ClInclude Include="WinSettingCommon.h" />
+    <ClInclude Include="WinSetting.h" />
+    <ClInclude Include="WinSettingShortcut.h" />
+    <ClInclude Include="WinConfirm.h" />
+    <ClInclude Include="CapVideo.h" />
+    <ClInclude Include="VideoMp4.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="Res\iconfont.ttf" />
