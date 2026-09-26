@@ -104,18 +104,16 @@ bash build-support/rebuild_all.sh
 
 这些都不影响最终产物的构建与运行 —— 产物是单个 exe，无外部依赖。
 
-## 关于 Ling（现在是 submodule）
+## 关于 Ling（2026-09-26 起按 ZDock 式路径引用，不再是 submodule）
 
 Ling 上游是 [xland/Ling](https://github.com/xland/Ling)（MIT，© 2025 liulun）。
 我们用的是自己的 fork **[James-ctrl-Doyle/Ling](https://github.com/James-ctrl-Doyle/Ling)**，
-另外在开发机上还有一份独立的工作副本 `projects/Ling/`（要改 Ling 时在那里改、推上去）。
+它在开发机上的工作副本就是 ZPin 的兄弟目录 `projects/Ling/`（要改 Ling 时在那里改、
+打 tag 发包、推上去）。
 
-**2026-09-25 之前是内置源码**（直接复制进 `ext/Ling` 并去掉它自己的 `.git`），
-改为 **git submodule** 之后：ZPin 只记"钉在哪个 commit"，Ling 的源码不再进本仓库。
-
-- 当前钉住：`8470304`（`git submodule status` 可查）；内置时期的版本是上游 `xland/Ling@b77448e`
-- `ext/Ling/x64/`（编译产物）由 **Ling 自己的** `.gitignore`（`**/x64/**`）排除，不脏两边
-- 升级流程见上面"编译"一节
+引用方式沿革：内置源码（≤09-25）→ git submodule（09-25~09-26）→ **路径优先级解析**（现在，
+与 ZDock 同款）：`LING_ROOT` 环境变量 → `../Ling/dist/ling-v<版本>-x64` 发布包 → `../Ling`
+源码树。ZPin 仓库里不再有任何 Ling 源码/锁文件。当前链 **v1.3.1**；升级流程见上面"编译"一节。
 
 ⚠ **内置时期我们往 Ling 里加过一个 bugfix，改动 Ling 时别丢**：
 `Text::setMaxWidth()` / `Button::setMaxTextWidth()` —— 修的是"设置-关于-项目那一项，
@@ -126,19 +124,18 @@ Ling 上游是 [xland/Ling](https://github.com/xland/Ling)（MIT，© 2025 liulu
 
 ## 开发脚本
 
-全部集中在 `ext/build-support/`（2026-09-22 从原来的 `_tools/` 收拢过来）。
+全部集中在 `build-support/`（2026-09-22 从 `_tools/` 收拢，2026-09-26 随目录重组上移到顶层）。
 
 | 脚本 | 说明 |
 |---|---|
-| `rebuild_all.sh` | 完整重编（yoga → Ling → ZPin；装了 Ling 发布包时自动跳过前两步）。构建成功后会另外备一份带版本号的发布件到 `ext/build/release/ZPin_<版本>.exe` |
-| `ling_pkg.sh` | Ling 发布包的 install / source / status。版本记录在根目录 `ling.lock`，包本体在 `ext/ling-pkg/`（不进仓库） |
+| `rebuild_all.sh` | 完整重编（yoga → Ling → ZPin；装了 Ling 发布包时自动跳过前两步）。构建成功后会另外备一份带版本号的发布件到 `_review/ZPin_<版本>.exe` |
 | `release.sh` | 把发布件发到 GitHub Releases（打 tag + 建 release + 传 exe）。`--dry-run` 只做本地准备。见下 |
 | `runtime_*_test.py` | 运行时回归测试（截图、绘图、长图、录屏、二维码、快捷键、历史回溯、设置页、放大镜…）。需要先编出 exe，并用 exe 同目录的 `config.json` 做便携配置；脚本会备份/还原你真实的配置 |
-| `_pylibs.py` | 把 `ext/build/.pylibs`（Pillow）挂进 `sys.path`。每个要 `import PIL` 的测试脚本在开头 `import _pylibs` 就行 |
+| `_pylibs.py` | 把 `build/.pylibs`（Pillow）挂进 `sys.path`。每个要 `import PIL` 的测试脚本在开头 `import _pylibs` 就行 |
 | `_cfg_guard.py` | 测试用便携配置的备份/还原护栏，防止误写真实 `config.json`。装护栏时会**先结束正在运行的 ZPin 实例**（含 release 版 `ZPin_*.exe`）—— 程序有单实例检测，老实例活着时测试要么失败、要么在驱动老代码的窗口 |
 | `scroll_target.py` | 造一个可滚动窗口，供长图测试用 |
 | `make_build_project.py` | 生成本机用的构建工程副本（`rebuild_all.sh` 第 0 步会调它） |
-| `render_iconfont.py` | 把 `iconfont.ttf` 的字形渲染成对照图（输出到 `ext/build/`），加图标前用来确认码点存在 |
+| `render_iconfont.py` | 把 `iconfont.ttf` 的字形渲染成对照图（输出到 `build/`），加图标前用来确认码点存在 |
 | `fix_lang_eol.py` | 把语言文件统一成 UTF-16LE + BOM + CRLF |
 | `check_shortcut_logic.py` | 把 `Setting.cpp` 的快捷键表/迁移/冲突逻辑复刻成 Python，先证明语义正确 |
 | `_msvc_env.sh` | 直接调 `cl.exe` 编小工具时的最小环境（不走 MSBuild） |
@@ -146,20 +143,20 @@ Ling 上游是 [xland/Ling](https://github.com/xland/Ling)（MIT，© 2025 liulu
 ## 发布
 
 ```bash
-bash ext/build-support/rebuild_all.sh    # 1. 编出 exe（同时备好带版本号的发布件）
-bash ext/build-support/release.sh        # 2. 发到 GitHub Releases
+bash build-support/rebuild_all.sh    # 1. 编出 exe（同时备好带版本号的发布件）
+bash build-support/release.sh        # 2. 发到 GitHub Releases（从 _review/ 取件上传）
 ```
 
 `release.sh` 会：从 **exe 自己的版本资源**读版本号（不另外维护一处版本号）→ 确保
-`ext/build/release/ZPin_<版本>.exe` 就位 → 从 `CHANGELOG.md` 抽该版本段落当 release
+`_review/ZPin_<版本>.exe` 就位 → 从 `CHANGELOG.md` 抽该版本段落当 release
 说明 → 打 tag `v<版本>` 并推送 → 建 release 并把 exe 传上去。
 
-#### 交付目录 `ext/build/release/`
+#### 交付目录 `_review/`
 
 构建成功后这里就是**一份可直接跑、也可直接发布的完整目录**：
 
 ```
-ext/build/release/
+_review/
 ├─ ZPin_2.6.0.exe     # 构建生成（每次重编会覆盖）
 ├─ config.json                 # 便携配置：程序读 exe 同目录的这份
 └─ temp/                       # 运行时数据（last.bin、shots/ 截图历史）
@@ -170,7 +167,7 @@ ext/build/release/
 （2026-09-22 之前这里有个 `_review/` 干同样的活，已撤销，配置与运行数据都迁到了这里。）
 
 - 发之前**工作区必须干净**（发布件要对得上一个确定的提交），否则直接拒绝。
-- 先看要发什么、不碰 GitHub：`bash ext/build-support/release.sh --dry-run`
+- 先看要发什么、不碰 GitHub：`bash build-support/release.sh --dry-run`
 - 仓库地址从 `git remote` 取，凭据走 `git credential fill`（不落地任何文件）。
 - 版本号唯一真源是 `Src/Res/Resource.rc` 的 `VERSIONINFO`。其中 `FILEVERSION` /
   `PRODUCTVERSION` 是 Windows 定点数格式**必须四段**（`2,6,0,0`），而 `StringFileInfo` 里

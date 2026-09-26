@@ -7,7 +7,7 @@
 # 做的事：
 #   1. 要求工作区干净（发布件必须能对应到某个提交）
 #   2. 从 exe 的**版本资源**里读版本号（不猜、不解析源码）→ 2.6.0
-#   3. 把 exe 复制成  build/release/ZPin_2.6.0.exe
+#   3. 把 exe 复制成  _review/ZPin_2.6.0.exe
 #   4. 从 CHANGELOG.md 抽出该版本的段落当 release 说明
 #   5. 打 tag v2.6.0 并推送
 #   6. 建 release + 上传那个 exe
@@ -23,7 +23,7 @@ DRY_RUN=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EXE="$ROOT/build/bin/x64/Release/ZPin.build.exe"
-REL_DIR="$ROOT/build/release"
+REL_DIR="$ROOT/_review"
 LOG_DIR="$ROOT/build/logs"
 CHANGELOG="$ROOT/CHANGELOG.md"
 

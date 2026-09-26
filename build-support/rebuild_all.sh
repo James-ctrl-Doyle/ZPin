@@ -103,7 +103,7 @@ log "ok  (python: $PY)"
 log ""
 
 # 产物 exe 正在运行会挡住链接（LNK1104 无法打开文件）；另外用户自己很可能还开着一份
-# 从 build/release/ 起的那份 —— 两份实例抢 F1 热键，回归测试会整片失败。
+# 从 _review/ 起的那份 —— 两份实例抢 F1 热键，回归测试会整片失败。
 # ⚠ 匹配必须用前缀：release 发布件叫 ZPin_<版本>.exe，进程名 "ZPin_2.6.0" 按精确名
 #   'ZPin' 是杀不到的（2026-09-26 实际踩到）。
 # ⚠ 杀进程走 python（_cfg_guard.kill_running_instances，Toolhelp 快照）而不是
@@ -171,7 +171,7 @@ if [ -f "$REL_EXE" ]; then
         "(Get-Item '$(winpath "$REL_EXE")').VersionInfo.FileVersion" 2>/dev/null | tr -d '\r\n')"
     VER="$(printf '%s' "$VER_FULL" | cut -d. -f1-3)"
     if [ -n "$VER" ]; then
-        REL_DIR="$BUILD/release"
+        REL_DIR="$ROOT/_review"
         mkdir -p "$REL_DIR"
         cp -f "$REL_EXE" "$REL_DIR/ZPin_$VER.exe"
         log ""

@@ -1,11 +1,11 @@
 """复现"进入截图模式后点录屏按钮，工具条消失"——用**用户真实环境**：
 
-- exe 用 build/release/ZPin_<版本>.exe（交付目录里那份，旁边就是
+- exe 用 _review/ZPin_<版本>.exe（交付目录里那份，旁边就是
   用户的真实 config.json），**不覆盖那份 config.json**（cfg_guard 会备份/还原）。
   对比：runtime_video_probe.py 每次都自己写一份接近默认的测试配置 —— 这正是
   它一直复现不出来、而用户天天能撞见的原因之一。
   （2026-09-22 之前这里是 _review/ZPin.exe；_review 已撤销，配置与运行
-   数据都收进了 build/release/。）
+   数据都收进了 _review/。）
 - 窗口枚举**包含隐藏窗口**：如果 ToolVideo 建出来了但 IsWindowVisible=false，
   或者建在了屏幕外，probe 那种"只看可见窗口"的列表根本暴露不了。
 - 全屏截图留档，肉眼确认工具条在不在画面里。
