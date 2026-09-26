@@ -23,7 +23,11 @@ namespace
     // 放大镜（取景框）：取光标周围 srcW×srcH 个屏幕像素，每个放大 scaleNum 倍画出来。
     // scaleNum 是**物理像素**倍率（不乘 dpi）—— 源像素本来就是物理像素，倍率再跟 dpi
     // 挂钩反而会让不同缩放的屏幕上"一格"大小不一。
-    constexpr float scaleNum{ 8.f }, srcW{ 50.f }, srcH{ 30.f };
+    // srcW/srcH 决定取景框范围：25×15 × 16 = 400×240（2026-09-26 用户先要 2 倍倍率，
+    // 再嫌范围太大，于是倍率不动、范围减半）。
+    // ⚠ srcW/srcH 是奇数时"原点格"的定位必须按网格算（见 paintPix 的 cx/cy），
+    //   不能直接用 pixW/2 —— 那不是源像素边界。
+    constexpr float scaleNum{ 16.f }, srcW{ 25.f }, srcH{ 15.f };
     constexpr float pixImgH{ scaleNum * srcH };
     constexpr float pixW{ srcW * scaleNum };
     // 原地提示的定时器 id 与显示时长（2 秒）。18 / 19 是 CapLong 的滚动定时器、100 是绘图夹点，
@@ -321,22 +325,24 @@ void WinCap::paintPix(ID2D1DeviceContext* ctx)
     }
     ctx->DrawRectangle(pixRect, brushBg.Get(),dpi);
 
-    // 十字：全部对齐到源像素网格，臂厚 = 一个源像素（= scaleNum 设备像素）。
-    // 采样窗固定取 wantL = pos.x - srcW/2，光标永远落在采样窗第 srcW/2 个源像素的
-    // **左边缘**上 —— 光标下那个像素画出来就是 [pixW/2, pixW/2+scaleNum) 这个格子，
-    // 它就是中心孔（不画，露出的就是要聚焦的那一个像素）。四条臂各占孔外侧紧邻的
-    // 一行 / 一列源像素：
-    //   横臂 = 孔上一行 [cy-px, cy) 与下一行 [cy+px, cy+2px)，全宽
-    //   竖臂 = 孔左一列 [cx-px, cx) 与右一列 [cx+px, cx+2px)，全高
-    // ⚠ 臂厚别乘 dpi（最早 4*dpi 而 scaleNum=5，缝里能塞两个源像素，分不清取的是哪个）。
-    // ⚠ 孔和臂必须共用一套格子 —— 2026-09-26 只挪了孔没挪臂，竖臂还压在旧中线上，
-    //   十字看着是错位的，又被用户抓了一轮。
+    // 准星：单线十字 —— 用坐标系说就是"x 轴 / y 轴画蓝，原点与四个象限全透明"。
+    // 采样窗固定取 wantL = pos.x - srcW/2（整数除法），光标永远落在采样窗第
+    // **floor(srcW/2) 个源像素的左边缘**上 —— 所以原点格（= 光标下那个像素）的
+    // 左上角在 floor(srcW/2)*scaleNum 处，而不是 pixW/2（srcW 为奇数时两者差半格）。
+    // 原点格既是"原点"（不画，露出来给用户看颜色，与 HEX/RGB 读数同格），也是两条轴
+    // 的交汇处：横轴 = 原点那一整行，竖轴 = 原点那一整列，各一个源像素厚
+    // （= scaleNum 设备像素），原点处挖空。四象限与轴以外全透明。
+    //   横轴左半 [0, cx) × [cy, cy+px)      横轴右半 [cx+px, pixW) × [cy, cy+px)
+    //   竖轴上段 [cx, cx+px) × [0, cy)      竖轴下段 [cx, cx+px) × [cy+px, pixImgH)
+    // ⚠ 轴厚别乘 dpi（最早 4*dpi 而 scaleNum=5，缝里能塞两个源像素，分不清取的是哪个）。
+    // ⚠ 原点格与轴必须共用一套网格 —— 动一个没动另一个就是"十字错位"（2026-09-26 踩过两轮）。
     const float px{ scaleNum };
-    const float cx{ pixW / 2.f }, cy{ pixImgH / 2.f };
-    auto crossRect0 = D2D1::RectF(pixPos.x,           pixPos.y + cy - px,       pixPos.x + pixW,       pixPos.y + cy);           // 孔上一行
-    auto crossRect1 = D2D1::RectF(pixPos.x,           pixPos.y + cy + px,       pixPos.x + pixW,       pixPos.y + cy + 2.f * px); // 孔下一行
-    auto crossRect2 = D2D1::RectF(pixPos.x + cx - px, pixPos.y,                 pixPos.x + cx,         pixPos.y + pixImgH);       // 孔左一列
-    auto crossRect3 = D2D1::RectF(pixPos.x + cx + px, pixPos.y,                 pixPos.x + cx + 2.f * px, pixPos.y + pixImgH);    // 孔右一列
+    const float cx{ std::floor(srcW * 0.5f) * px };
+    const float cy{ std::floor(srcH * 0.5f) * px };
+    auto crossRect0 = D2D1::RectF(pixPos.x,            pixPos.y + cy,        pixPos.x + cx,            pixPos.y + cy + px);        // 横轴左半
+    auto crossRect1 = D2D1::RectF(pixPos.x + cx + px,  pixPos.y + cy,        pixPos.x + pixW,          pixPos.y + cy + px);        // 横轴右半
+    auto crossRect2 = D2D1::RectF(pixPos.x + cx,       pixPos.y,             pixPos.x + cx + px,       pixPos.y + cy);             // 竖轴上段
+    auto crossRect3 = D2D1::RectF(pixPos.x + cx,       pixPos.y + cy + px,   pixPos.x + cx + px,       pixPos.y + pixImgH);        // 竖轴下段
 
     ctx->FillRectangle(crossRect0, crossBrush.Get());
     ctx->FillRectangle(crossRect1, crossBrush.Get());

@@ -56,8 +56,8 @@ P1 = (700, 500)
 P2 = (950, 650)
 
 # 放大镜参数，镜像 WinCap.cpp 顶部那组 constexpr —— 那边改了这里要同步
-SCALE = 8.0
-SRC_W, SRC_H = 50, 30
+SCALE = 16.0
+SRC_W, SRC_H = 25, 15
 
 WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, wintypes.HWND, ctypes.c_uint,
                              ctypes.c_ulonglong, ctypes.c_longlong)
@@ -250,14 +250,10 @@ def cross_runs(mask):
     路径文字**都能凑出几百个蓝像素、把判据骗过去（实测松手后那轮就是这么误报的：
     残留的"蓝色"其实是我自己终端窗口里的一行字）。
 
-    ⚠ 阈值为什么是 150 / 90 而不是 400 / 240：**十字是挖空的** —— 中心留白把每条臂
-    都从中间截断了，所以"最长连续段"只有半个臂：
-      横臂半段 = pixW/2 - crossWHalf = 400/2 - 4 = 196
-      竖臂半段 = pixImgH/2 - crossWHalf = 240/2 - 4 = 116
-    （一开始按整臂 400/240 卡阈值，结果十字明明在图上、判据却全 False。）
-
-    双条件（横 >= 150 且竖 >= 90）已经足够特异：文字笔画是断的，而一个 150px 宽的
-    蓝色按钮不会有 90px 高的连续竖段 —— 不再依赖"屏幕上没有别的蓝色"这个假设。
+    ⚠ 阈值为什么是 150 / 90 而不是 800 / 480：准星是**单线十字**（x/y 轴），
+    横轴走的是原点那一行 —— 量"最长连续横段"时，命中轴那一行就是整幅宽（pixW=800），
+    命中别的行则只有竖轴那 16px。阈值取中间值，兼容两种命中情况，又不至于被
+    桌面上的普通蓝色（文字笔画是断的、按钮没有 90px 高的连续竖段）骗过去。
     """
     w, h = mask.size
     px = mask.load()
@@ -296,14 +292,13 @@ def center(bbox):
 
 
 def hole_probe(pos, tag='hole'):
-    """中心孔对齐回归 —— 2026-09-26 修"十字错位"后加的判据。
+    """中心原点对齐回归 —— 2026-09-26 改"单线十字"后同步的判据。
 
     采样窗固定取 wantL = pos.x - srcW/2，光标永远落在采样窗第 srcW/2 个源像素的
-    **左边缘**上，所以中心孔必须正好是
+    **左边缘**上，所以"原点"（光标下那个像素）画出来必须是
         x [srcW/2*SCALE, +SCALE) × y [srcH/2*SCALE, +SCALE)
-    这**一个源像素**的格子，且孔四周紧邻的一行/列就是四条臂（同网格）。
-    之前两轮事故：① 洞居中在 pixW/2 上、骑在两像素交界（看着 2×2）；
-    ② 只挪了孔没挪臂，竖臂压在旧中线上（整个十字错位）。
+    这**一个源像素**的格子，且它四周紧邻的一行/列就是两条轴（同网格）。
+    之前两轮事故：① 原点居中骑在两像素交界（看着 2×2）；② 只挪原点没挪轴 → 十字错位。
     """
     proc = subprocess.Popen([EXE])
     try:
@@ -332,30 +327,30 @@ def hole_probe(pos, tag='hole'):
         for x in range(cx, cx + s):
             for y in range(cy, cy + s):
                 if blue(x, y):
-                    print('   !! 孔内 (%d,%d) 是蓝的 —— 洞被臂盖住/错位' % (x, y))
+                    print('   !! 原点格内 (%d,%d) 是蓝的 —— 轴盖住原点了' % (x, y))
                     ok = False
                     break
             if not ok:
                 break
         for y in range(cy, cy + s):
             if not blue(cx - 1, y):
-                print('   !! 孔左一列 (cx-1) 不是蓝的 —— 臂没对齐网格')
+                print('   !! 原点格左邻 (cx-1) 不是蓝的 —— 横轴没对齐网格')
                 ok = False
                 break
             if not blue(cx + s, y):
-                print('   !! 孔右一列 (cx+s) 不是蓝的 —— 臂没对齐网格')
+                print('   !! 原点格右邻 (cx+s) 不是蓝的 —— 横轴没对齐网格')
                 ok = False
                 break
         for x in range(cx, cx + s):
             if not blue(x, cy - 1):
-                print('   !! 孔上一行 (cy-1) 不是蓝的 —— 臂没对齐网格')
+                print('   !! 原点格上邻 (cy-1) 不是蓝的 —— 竖轴没对齐网格')
                 ok = False
                 break
             if not blue(x, cy + s):
-                print('   !! 孔下一行 (cy+s) 不是蓝的 —— 臂没对齐网格')
+                print('   !! 原点格下邻 (cy+s) 不是蓝的 —— 竖轴没对齐网格')
                 ok = False
                 break
-        print('   孔对齐 %s（期望格子 x[%d,%d) y[%d,%d)，臂=紧邻一行/列）'
+        print('   原点对齐 %s（期望格子 x[%d,%d) y[%d,%d)，轴=紧邻一行/列）'
               % ('✔' if ok else '✘', cx, cx + s, cy, cy + s))
         return ok
     finally:
@@ -498,7 +493,7 @@ def main():
 
     # 黑块只盖住"拖框起终点围出的矩形 + 取样半径 + 余量"：
     # 取景框要从这里取像，黑底才能让十字颜色确定（不再铺全屏）
-    SRC_HALF_W, SRC_HALF_H = 25, 15     # srcW/2, srcH/2（WinCap.cpp 那组常量）
+    SRC_HALF_W, SRC_HALF_H = 13, 8      # ceil(srcW/2), ceil(srcH/2)（WinCap.cpp 那组常量）
     pad = 20
     px0 = min(P1[0], P2[0]) - SRC_HALF_W - pad
     py0 = min(P1[1], P2[1]) - SRC_HALF_H - pad
