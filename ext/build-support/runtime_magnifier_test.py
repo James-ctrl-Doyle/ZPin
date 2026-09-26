@@ -295,6 +295,77 @@ def center(bbox):
     return ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
 
 
+def hole_probe(pos, tag='hole'):
+    """中心孔对齐回归 —— 2026-09-26 修"十字错位"后加的判据。
+
+    采样窗固定取 wantL = pos.x - srcW/2，光标永远落在采样窗第 srcW/2 个源像素的
+    **左边缘**上，所以中心孔必须正好是
+        x [srcW/2*SCALE, +SCALE) × y [srcH/2*SCALE, +SCALE)
+    这**一个源像素**的格子，且孔四周紧邻的一行/列就是四条臂（同网格）。
+    之前两轮事故：① 洞居中在 pixW/2 上、骑在两像素交界（看着 2×2）；
+    ② 只挪了孔没挪臂，竖臂压在旧中线上（整个十字错位）。
+    """
+    proc = subprocess.Popen([EXE])
+    try:
+        time.sleep(4.0)
+        click_shot_hotkey()
+        if not overlay_hwnd(proc.pid):
+            print('   !! 孔探针：覆盖层没出现')
+            return False
+        time.sleep(1.0)
+        move(pos[0] - 180, pos[1] - 150)
+        time.sleep(0.25)
+        move(*pos)
+        time.sleep(0.6)
+        box = magnifier_rect(pos, False, False)
+        m = blue_mask(grab(tag), box)
+        pxl = m.load()
+        w, h = m.size
+        cx = int(SRC_W // 2 * SCALE)
+        cy = int(SRC_H // 2 * SCALE)
+        s = int(SCALE)
+
+        def blue(x, y):
+            return 0 <= x < w and 0 <= y < h and pxl[x, y] != 0
+
+        ok = True
+        for x in range(cx, cx + s):
+            for y in range(cy, cy + s):
+                if blue(x, y):
+                    print('   !! 孔内 (%d,%d) 是蓝的 —— 洞被臂盖住/错位' % (x, y))
+                    ok = False
+                    break
+            if not ok:
+                break
+        for y in range(cy, cy + s):
+            if not blue(cx - 1, y):
+                print('   !! 孔左一列 (cx-1) 不是蓝的 —— 臂没对齐网格')
+                ok = False
+                break
+            if not blue(cx + s, y):
+                print('   !! 孔右一列 (cx+s) 不是蓝的 —— 臂没对齐网格')
+                ok = False
+                break
+        for x in range(cx, cx + s):
+            if not blue(x, cy - 1):
+                print('   !! 孔上一行 (cy-1) 不是蓝的 —— 臂没对齐网格')
+                ok = False
+                break
+            if not blue(x, cy + s):
+                print('   !! 孔下一行 (cy+s) 不是蓝的 —— 臂没对齐网格')
+                ok = False
+                break
+        print('   孔对齐 %s（期望格子 x[%d,%d) y[%d,%d)，臂=紧邻一行/列）'
+              % ('✔' if ok else '✘', cx, cx + s, cy, cy + s))
+        return ok
+    finally:
+        try:
+            proc.kill()
+            proc.wait(timeout=5)
+        except Exception:
+            pass
+
+
 def move(x, y):
     user32.SetCursorPos(x, y)
 
@@ -445,8 +516,10 @@ def main():
         ok &= check(P1, P2, 'fwd', run_round(P1, P2, 'fwd'))
         # 反向：从右下往左上拖 —— 取景框要翻到光标左上方去，别盖住选区
         ok &= check(P2, P1, 'rev', run_round(P2, P1, 'rev'))
+        # 中心孔对齐：孔必须是光标下那一个源像素的格子，臂与孔同网格
+        ok &= hole_probe(P1)
         print()
-        print('=>', '通过：拖框过程中放大镜一直跟着鼠标，且不会压住选区'
+        print('=>', '通过：放大镜跟随/避让正常，中心孔对齐到单个源像素'
               if ok else '**未通过**')
         return 0 if ok else 1
     finally:

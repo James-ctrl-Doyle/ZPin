@@ -321,19 +321,22 @@ void WinCap::paintPix(ID2D1DeviceContext* ctx)
     }
     ctx->DrawRectangle(pixRect, brushBg.Get(),dpi);
 
-    // 十字的臂半宽。臂厚 = 2×crossWHalf，跟 scaleNum 走、不能乘 dpi（历史教训：
-    //   最早写 4*dpi 而 scaleNum=5，臂缝里能塞下两个源像素，准星分不清取的是哪一个）。
-    // ⚠ 中心"洞"的位置必须对齐到**光标下那个源像素**的格子上，不是简单居中：
-    //   采样窗固定取 wantL = pos.x - srcW/2，所以光标永远落在采样窗第 srcW/2 个
-    //   源像素的**左边缘**上 —— 画出来就是 [pixW/2, pixW/2+scaleNum) 这一个格子。
-    //   若把洞居中在 pixW/2（[pixW/2-scaleNum/2, pixW/2+scaleNum/2)），洞会骑在
-    //   两个源像素的交界上，各露一半 —— 看着就是 2×2 四个像素（2026-09-26 用户实测）。
-    const float crossWHalf{ scaleNum * 0.5f };
+    // 十字：全部对齐到源像素网格，臂厚 = 一个源像素（= scaleNum 设备像素）。
+    // 采样窗固定取 wantL = pos.x - srcW/2，光标永远落在采样窗第 srcW/2 个源像素的
+    // **左边缘**上 —— 光标下那个像素画出来就是 [pixW/2, pixW/2+scaleNum) 这个格子，
+    // 它就是中心孔（不画，露出的就是要聚焦的那一个像素）。四条臂各占孔外侧紧邻的
+    // 一行 / 一列源像素：
+    //   横臂 = 孔上一行 [cy-px, cy) 与下一行 [cy+px, cy+2px)，全宽
+    //   竖臂 = 孔左一列 [cx-px, cx) 与右一列 [cx+px, cx+2px)，全高
+    // ⚠ 臂厚别乘 dpi（最早 4*dpi 而 scaleNum=5，缝里能塞两个源像素，分不清取的是哪个）。
+    // ⚠ 孔和臂必须共用一套格子 —— 2026-09-26 只挪了孔没挪臂，竖臂还压在旧中线上，
+    //   十字看着是错位的，又被用户抓了一轮。
     const float px{ scaleNum };
-    auto crossRect0 = D2D1::RectF(pixPos.x, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x+pixW / 2, pixPos.y + pixImgH / 2 + crossWHalf);
-    auto crossRect1 = D2D1::RectF(pixPos.x + pixW / 2 + px, pixPos.y+pixImgH / 2 - crossWHalf, pixPos.x + pixW, pixPos.y + pixImgH / 2 + crossWHalf);
-    auto crossRect2 = D2D1::RectF(pixPos.x + pixW / 2 - crossWHalf, pixPos.y, pixPos.x + pixW / 2 + crossWHalf, pixPos.y + pixImgH / 2);
-    auto crossRect3 = D2D1::RectF(pixPos.x + pixW / 2 - crossWHalf, pixPos.y+pixImgH / 2 + px, pixPos.x + pixW / 2 + crossWHalf, pixPos.y + pixImgH);
+    const float cx{ pixW / 2.f }, cy{ pixImgH / 2.f };
+    auto crossRect0 = D2D1::RectF(pixPos.x,           pixPos.y + cy - px,       pixPos.x + pixW,       pixPos.y + cy);           // 孔上一行
+    auto crossRect1 = D2D1::RectF(pixPos.x,           pixPos.y + cy + px,       pixPos.x + pixW,       pixPos.y + cy + 2.f * px); // 孔下一行
+    auto crossRect2 = D2D1::RectF(pixPos.x + cx - px, pixPos.y,                 pixPos.x + cx,         pixPos.y + pixImgH);       // 孔左一列
+    auto crossRect3 = D2D1::RectF(pixPos.x + cx + px, pixPos.y,                 pixPos.x + cx + 2.f * px, pixPos.y + pixImgH);    // 孔右一列
 
     ctx->FillRectangle(crossRect0, crossBrush.Get());
     ctx->FillRectangle(crossRect1, crossBrush.Get());
