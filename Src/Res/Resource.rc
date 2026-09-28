@@ -40,7 +40,7 @@ BEGIN
             VALUE "FileDescription", "ZPin"
             VALUE "FileVersion", "2.7.1"
             VALUE "InternalName", "ZPin.exe"
-            VALUE "LegalCopyright", "Copyright (C) James-ctrl-Doyle 2026"
+            VALUE "LegalCopyright", "Copyright (C) 2026 James-ctrl-Doyle"
             VALUE "OriginalFilename", "ZPin.exe"
             VALUE "ProductName", "ZPin"
             VALUE "ProductVersion", "2.7.1"

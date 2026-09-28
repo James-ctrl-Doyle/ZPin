@@ -9,7 +9,7 @@
   都改成 **ZPin**。
 - **exe 属性里的版权只保留作者本人**：`LegalCopyright` 从
   `Copyright (C) LiuXiaoLun 2023-2026, James-ctrl-Doyle 2026` 改为
-  `Copyright (C) James-ctrl-Doyle 2026`。
+  `Copyright (C) 2026 James-ctrl-Doyle`。
   ⚠ 上游归属**仍在 `LICENSE`（双版权行）与 README 的"基于 xland/ScreenCapture 二次开发"
   里保留** —— MIT 要求的是随软件副本附上许可与版权声明，仓库里的 LICENSE 满足这一条；
   这个改动只动 exe 的版本资源元数据。
