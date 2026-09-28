@@ -19,7 +19,7 @@ namespace {
 Tray::Tray()
 {
 	auto lingApp = Ling::App::get();
-	lingApp->initTray(100, L"Screen Capture");
+	lingApp->initTray(100, L"ZPin");
 	applyIconStyle();
 	Setting::get()->initShortcutKeys();
 	// 左键单击 / 双击 都进入截图

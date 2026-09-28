@@ -1,5 +1,19 @@
 # 更新日志
 
+## 2.7.1（2026-09-28）
+
+### 修复
+
+- **托盘悬停提示与截图窗口标题还是老名字**：托盘图标悬停显示的是 "Screen Capture"
+  （`Tray.cpp` 的 initTray 提示串从上游带过来的），截图覆盖层的窗口标题同样如此 ——
+  都改成 **ZPin**。
+- **exe 属性里的版权只保留作者本人**：`LegalCopyright` 从
+  `Copyright (C) LiuXiaoLun 2023-2026, James-ctrl-Doyle 2026` 改为
+  `Copyright (C) James-ctrl-Doyle 2026`。
+  ⚠ 上游归属**仍在 `LICENSE`（双版权行）与 README 的"基于 xland/ScreenCapture 二次开发"
+  里保留** —— MIT 要求的是随软件副本附上许可与版权声明，仓库里的 LICENSE 满足这一条；
+  这个改动只动 exe 的版本资源元数据。
+
 ## 2.7.0（2026-09-26）
 
 ### 新增

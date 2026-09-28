@@ -40,7 +40,7 @@ std::unique_ptr<WinCap> winCap;
 
 WinCap::WinCap() : ToolHost()
 {
-	setTitle(L"Screen Capture");
+	setTitle(L"ZPin");
     auto [x1, y1, w1, h1] = App::get()->getScreenArea();
 	this->x = x1;this->y = y1;this->w = w1;this->h = h1;
     onMouseDown.add([this](POINT pos, bool isRight) { this->onDown(pos, isRight); });
