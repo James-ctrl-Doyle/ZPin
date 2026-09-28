@@ -27,11 +27,11 @@ except Exception:
     pass
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-# 本文件在 <仓库根>/build-support/ 下，仓库根要往上两级
-_REPO = os.path.normpath(os.path.join(_HERE, '..', '..'))
+# 本文件在 <仓库根>/build-support/ 下，仓库根只往上**一级**
+_REPO = os.path.normpath(os.path.join(_HERE, '..'))
 # 默认用交付目录里那份 exe + 它旁边的真实 config（cwd 会是 exe 目录）。
 # 文件名带版本号（ZPin_2.6.0.exe），所以按通配取最新的那个。
-_REL_DIR = os.path.join(_REPO, 'ext', 'build', 'release')
+_REL_DIR = os.path.join(_REPO, '_review')
 _CANDS = sorted(glob.glob(os.path.join(_REL_DIR, 'ZPin_*.exe')))
 if not _CANDS:
     print("!! 交付目录里没有 ZPin_*.exe：%s" % _REL_DIR)

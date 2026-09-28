@@ -4,13 +4,13 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.normpath(os.path.join(
-    ROOT, '..', '..', 'projects', 'ZPin', 'ext', 'build', '.pylibs')))
+    ROOT, '..', 'build', '.pylibs')))
 
 from PIL import Image
 
 bad = []
-for name in sorted(os.listdir(os.path.join(ROOT, 'png'))):
-    d = os.path.join(ROOT, 'png', name)
+for name in sorted(os.listdir(os.path.join(ROOT, '_review'))):
+    d = os.path.join(ROOT, '_review', name)
     if not os.path.isdir(d):
         continue
     print(f'--- {name}')

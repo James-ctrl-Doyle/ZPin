@@ -21,7 +21,7 @@ DRY_RUN=0
 [ "$1" = "--dry-run" ] && DRY_RUN=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 EXE="$ROOT/build/bin/x64/Release/ZPin.build.exe"
 REL_DIR="$ROOT/_review"
 LOG_DIR="$ROOT/build/logs"

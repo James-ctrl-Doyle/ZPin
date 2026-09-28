@@ -52,7 +52,7 @@ EXE_DIR = os.path.dirname(EXE)
 PORTABLE_CFG = os.path.join(EXE_DIR, 'config.json')
 import _cfg_guard          # 这行文件就是 <exe 同目录>\config.json = 用户真实配置，得护栏
 _cfg_guard.install(PORTABLE_CFG)
-ROOT = os.path.normpath(os.path.join(_HERE, '..', '..'))
+ROOT = os.path.normpath(os.path.join(_HERE, '..'))
 LOG_DIR = os.path.join(_BUILD, 'logs')
 
 # 二维码窗口：620x620 白底 + 居中 540x540 的二维码（留出 40px 静默区，quirc 靠它定位）
