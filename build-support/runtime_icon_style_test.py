@@ -33,6 +33,9 @@ EXE_DIR = os.path.dirname(EXE)
 PORTABLE_CFG = os.path.join(EXE_DIR, 'config.json')
 import _cfg_guard
 _cfg_guard.install(PORTABLE_CFG)
+# 真实点击的公共实现（带**遮挡守卫**）：目标窗口被别的窗口挡住时，
+# 点击会送进遮挡者、目标进程收不到消息 —— 那不是程序 bug，得当场说清楚。
+from _win_click import click_via_message   # noqa: E402
 
 ICON_ROW_Y = 439.5     # "图标"行的逻辑 y 中心（最后一行，见 WinSettingCommon 构造函数）
 BTN_X = 570.0          # 按钮列中心 x（推导见 toggles 测试头部注释）
@@ -60,13 +63,15 @@ def windows_of(pid, visible=True):
     return out
 
 
-def real_click(x, y, settle=0.6):
-    user32.SetCursorPos(int(x), int(y))
-    time.sleep(0.2)
-    user32.mouse_event(0x0002, 0, 0, 0, 0)   # left down
-    time.sleep(0.08)
-    user32.mouse_event(0x0004, 0, 0, 0, 0)   # left up
-    time.sleep(settle)
+def click_settings(win, x, y, settle=0.8):
+    """点设置窗口里的 (x,y)（屏幕坐标）—— 走**消息点击**，不碰光标、也不会被遮挡。
+
+    这里原来用 SetCursorPos + mouse_event（真实输入）。真实输入打的是"该坐标处最上层
+    的窗口"：设置窗口被别的窗口挡住时点击会送进遮挡者、目标进程收不到消息，表现为
+    "窗口明明在、点下去没反应"（2026-08-08 图标回归偶发失败的真因）。
+    Ling 的按钮是纯消息驱动的，发消息更稳。
+    """
+    return click_via_message(win['hwnd'], x, y, settle=settle)
 
 
 def read_icon_style():
@@ -116,11 +121,11 @@ def main():
         by = T + ICON_ROW_Y * dpi
 
         print('设置窗口 %s dpi=%.2f 按钮落点 (%.0f, %.0f)' % (win['rect'], dpi, bx, by))
-        real_click(bx, by, settle=0.8)
+        click_settings(win, bx, by)
         ok1 = wait_style('simple')
         print('第 1 次点击 → iconStyle = %s' % read_icon_style())
 
-        real_click(bx, by, settle=0.8)
+        click_settings(win, bx, by)
         ok2 = wait_style('color')
         print('第 2 次点击 → iconStyle = %s' % read_icon_style())
 

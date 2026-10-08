@@ -55,6 +55,8 @@ EXE_DIR = os.path.dirname(EXE)
 PORTABLE_CFG = os.path.join(EXE_DIR, 'config.json')
 import _cfg_guard
 _cfg_guard.install(PORTABLE_CFG)
+from _win_click import click_via_message                # noqa: E402  （消息点击：不碰光标、不怕遮挡）
+from _win_click import real_click as _real_click        # noqa: E402  （托盘菜单那一下还得走真实输入）
 
 WM_APP = 0x8000
 TRAY_MSG = WM_APP + 100
@@ -103,13 +105,13 @@ def find_msg_window(pid):
             return h
 
 
-def real_click(x, y, settle=0.6):
-    user32.SetCursorPos(int(x), int(y))
-    time.sleep(0.2)
-    user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-    time.sleep(0.08)
-    user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-    time.sleep(settle)
+_expect_pid = None      # 目标进程（main 里启动 exe 后设置），给遮挡守卫用
+
+
+def real_click(x, y, settle=0.6, expect_pid=None):
+    """真实点击（带遮挡守卫）。expect_pid 给了就检查该点最上层窗口是不是目标进程的
+    —— 被别的窗口挡住时点击会送进遮挡者，得当场报"被遮挡"而不是让它伪装成断言失败。"""
+    return _real_click(x, y, settle=settle, expect_pid=expect_pid)
 
 
 def write_cfg():
@@ -197,7 +199,7 @@ def click_confirm_button(pid, title_kw, which):
         x = L + W - (22 + 44) * dpi
     else:
         x = L + W - (22 + 88 + 10 + 44) * dpi
-    real_click(x, y, settle=0.9)
+    click_via_message(w['hwnd'], x, y, settle=0.9)
     return True
 
 
@@ -218,7 +220,7 @@ def click_admin_switch(win):
     x = L + BTN_X * dpi
     y = T + ROW_Y['admin'] * dpi
     print('   点管理员开关 (%d,%d)' % (x, y))
-    real_click(x, y, settle=1.2)
+    click_via_message(win['hwnd'], x, y, settle=1.2)
 
 
 def wait_new_pid(old_pid, timeout=20):
@@ -234,6 +236,8 @@ def main():
     write_cfg()
     ok = True
     proc = subprocess.Popen([EXE])
+    global _expect_pid
+    _expect_pid = proc.pid
     try:
         time.sleep(3.5)
         win = open_setting(proc)
