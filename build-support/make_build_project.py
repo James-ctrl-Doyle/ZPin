@@ -6,7 +6,7 @@ r"""生成一份 ZPin 的工程副本，用于本机编译验证。
 
 Ling 的引用与 ZDock 同一套（build-support/build.sh 的优先级）：
   1) 环境变量 LING_ROOT
-  2) ../Ling/dist/ling-v1.3.1-x64     —— Ling 仓库打出来的发布包（含 include/ + x64/Release）
+  2) ../Ling/dist/ling-v1.4.0-x64     —— Ling 仓库打出来的发布包（含 include/ + x64/Release）
   3) ../Ling                           —— Ling 源码树（布局与发布包一致）
 `Src/ZPin.vcxproj` 里写的是 `__LING_ROOT__` 占位符，这里解析成绝对路径烘进副本
 （MSBuild 直接编 .vcxproj 时不经过 .slnx，`$(SolutionDir)` 是空的，所以必须绝对路径）。
@@ -29,7 +29,7 @@ def resolve_ling_root():
     if env:
         return env
     dist = os.path.normpath(os.path.join(ROOT, '..', 'Ling',
-                                         'dist', 'ling-v1.3.1-x64'))
+                                         'dist', 'ling-v1.4.0-x64'))
     if os.path.isdir(os.path.join(dist, 'include')):
         return dist
     return os.path.normpath(os.path.join(ROOT, '..', 'Ling'))

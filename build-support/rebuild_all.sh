@@ -27,13 +27,13 @@ mkdir -p "$LOGS"
 
 # ---- Ling 引用（与 ZDock 的 build.sh 同一套优先级）----
 #   1) $LING_ROOT 环境变量
-#   2) ../Ling/dist/ling-v1.3.1-x64  —— Ling 仓库的发布包（include/ + x64/Release）
+#   2) ../Ling/dist/ling-v1.4.0-x64  —— Ling 仓库的发布包（include/ + x64/Release）
 #   3) ../Ling                        —— Ling 源码树（布局与发布包一致）
 # 解析到发布包 → 直接连它的 lib，跳过 yoga/Ling 编译；解析到源码树 → 现场编一遍。
 # LING_FROM_SOURCE=1 可强制走源码树。判断依据：包里有没有 x64/Release/Ling.lib。
 resolve_ling_root() {
     if [ -n "${LING_ROOT:-}" ]; then printf '%s' "$LING_ROOT"; return; fi
-    local dist="$ROOT/../Ling/dist/ling-v1.3.1-x64"
+    local dist="$ROOT/../Ling/dist/ling-v1.4.0-x64"
     if [ -f "$dist/x64/Release/Ling.lib" ]; then printf '%s' "$dist"; return; fi
     printf '%s' "$ROOT/../Ling"
 }
