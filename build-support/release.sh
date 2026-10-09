@@ -151,3 +151,13 @@ if printf '%s' "$UP" | grep -q '"browser_download_url"'; then
 else
     die "上传资产失败：$UP"
 fi
+
+# ———— 9. 清掉交付目录里的旧版本发布件 ————
+# 交付目录（_review/）会堆历史版本：rebuild_all 只新增不清理，发几次就分不清哪份是最新的。
+# 发版成功之后顺手收拾：只删 ZPin_*.exe、且跳过刚发的这份；
+# config.json / temp/ 这些运行数据一律不碰。
+for f in "$REL_DIR"/ZPin_*.exe; do
+    [ -e "$f" ] || continue          # 没有匹配项时 glob 会原样返回，这里挡一下
+    if [ "$f" = "$ASSET" ]; then continue; fi
+    rm -f "$f" && echo "已清理旧发布件：${f#$ROOT/}"
+done
