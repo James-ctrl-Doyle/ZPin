@@ -31,6 +31,9 @@ public:
 	bool hideLabel{ false };
 private:
 	void initWinRect();
+	// 调试：ZPIN_VERBOSE_SEL=1 时把选区矩形追加写进 <exe 同目录>/sel.log。
+	// 用来量"点击/抖动之后选区到底变成什么了" —— 截图反推太容易看错。
+	void logSel(const char* tag);
 	// 尺寸标签只在 maskRect 变化时重建，不必每帧现建
 	void makeLayout();
 private:

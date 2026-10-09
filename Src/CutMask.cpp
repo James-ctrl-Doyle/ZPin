@@ -6,6 +6,36 @@
 #include "Util.h"
 using namespace Microsoft::WRL;
 
+void CutMask::logSel(const char* tag)
+{
+	// 一次性读环境变量（读不到就整段不生效）
+	static const bool on = [] {
+		char buf[8]{};
+		return GetEnvironmentVariableA("ZPIN_VERBOSE_SEL", buf, sizeof(buf)) > 0;
+	}();
+	if (!on || !win || !win->hwnd) return;
+	wchar_t exe[MAX_PATH]{};
+	GetModuleFileNameW(nullptr, exe, MAX_PATH);
+	std::filesystem::path path{ exe };
+	path.replace_filename(L"sel.log");
+
+	auto line = std::format(L"[{}] rect=({:.1f}, {:.1f}, {:.1f}, {:.1f}) size={:.0f}x{:.0f} press=({}, {})\n",
+		std::wstring(tag, tag + std::strlen(tag)),
+		maskRect.left, maskRect.top, maskRect.right, maskRect.bottom,
+		maskRect.right - maskRect.left, maskRect.bottom - maskRect.top,
+		pressPos.x, pressPos.y);
+
+	// ⚠ 必须**二进制追加 + UTF-8**：文本模式（"a, ccs=UTF-16" 之类）在 Windows 上
+	//   追加宽字符会错位（实测同一行被反复覆盖、解码出乱码），"a" 文本模式还会把 0x1A 当 EOF。
+	std::ofstream f(path, std::ios::binary | std::ios::app);
+	if (!f) return;
+	int n = WideCharToMultiByte(CP_UTF8, 0, line.c_str(), (int)line.size(), nullptr, 0, nullptr, nullptr);
+	if (n <= 0) return;
+	std::string u8((size_t)n, '\0');
+	WideCharToMultiByte(CP_UTF8, 0, line.c_str(), (int)line.size(), u8.data(), n, nullptr, nullptr);
+	f << u8 << '\n';
+}
+
 CutMask::CutMask(Ling::WinBase* win) :win{ win }
 {
 	// 边框粗细可配（设置里调，0 = 完全不画边框），默认 2 与旧版写死的值一致
@@ -29,6 +59,7 @@ bool CutMask::highlight(POINT pos)
 				maskRect = rect;
 				makeLayout();
 				win->refresh();
+				logSel("highlight");
 				return true;
 			}
 			break;
@@ -96,6 +127,19 @@ void CutMask::startMakeRect(POINT pos)
 
 void CutMask::makeRect(POINT pos)
 {
+	// —— 点到即止 ——
+	// 按下之后还没超过系统拖动阈值（控制面板里那个"双击/拖动"判定框）就认为用户
+	// 只是**点了一下**：保持当前选区不动。它多半是 highlight 吸附到的窗口矩形，
+	// 正是用户想"点一下就按窗口截"的那个。
+	// 不这么做的话，手抖 2~3px 就会把吸附的窗口矩形覆盖成一个小方块
+	// （2026-10-09 用户报"悬浮能捕捉窗口，点击后不按窗口大小截图"就是这个）。
+	// ⚠ 顺便挡住"按下期间原地重播一次鼠标位置"（框架层 replay）—— 它会算出 0×0。
+	const int dx = GetSystemMetrics(SM_CXDRAG);
+	const int dy = GetSystemMetrics(SM_CYDRAG);
+	if (std::abs(pos.x - pressPos.x) <= dx && std::abs(pos.y - pressPos.y) <= dy) {
+		logSel("makeRect-skip(within-drag-threshold)");
+		return;
+	}
 	auto [left, right] = std::minmax(pressPos.x, pos.x);
 	auto [top, bottom] = std::minmax(pressPos.y, pos.y);
 	maskRect.left = (float)left;
@@ -104,6 +148,7 @@ void CutMask::makeRect(POINT pos)
 	maskRect.bottom = (float)bottom;
 	makeLayout();
 	win->refresh();
+	logSel("makeRect");
 }
 
 bool CutMask::hasRect() const
