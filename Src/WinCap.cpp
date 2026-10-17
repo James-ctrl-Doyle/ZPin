@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include <include/Ling.h>
 #include "WinCap.h"
 #include "WinPin.h"
@@ -38,6 +38,28 @@ namespace
 
 std::unique_ptr<WinCap> winCap;
 
+// 调试：ZPIN_VERBOSE_TIMER=1 时把定时器往来写进 <exe 同目录>/timer.log。
+// （二进制追加 UTF-8 —— 文本模式追加宽字符会错位，见 CutMask::logSel 的注释。）
+static void logTimer(const std::wstring& what)
+{
+    static const bool on = [] {
+        char buf[8]{};
+        return GetEnvironmentVariableA("ZPIN_VERBOSE_TIMER", buf, sizeof(buf)) > 0;
+    }();
+    if (!on) return;
+    wchar_t exe[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    std::filesystem::path path{ exe };
+    path.replace_filename(L"timer.log");
+    std::ofstream f(path, std::ios::binary | std::ios::app);
+    if (!f) return;
+    int n = WideCharToMultiByte(CP_UTF8, 0, what.c_str(), (int)what.size(), nullptr, 0, nullptr, nullptr);
+    if (n <= 0) return;
+    std::string u8((size_t)n, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, what.c_str(), (int)what.size(), u8.data(), n, nullptr, nullptr);
+    f << u8 << '\n';
+}
+
 WinCap::WinCap() : ToolHost()
 {
 	setTitle(L"ZPin");
@@ -50,6 +72,7 @@ WinCap::WinCap() : ToolHost()
     // 滚动截图的定时器借的是本窗口的，转给 CapLong。
     // id 100 是绘图夹点的自动收起（ToolHost::hoverShapeAt 里起的，与贴图窗口同一套约定）
     onTimer.add([this](UINT id) {
+        logTimer(std::format(L"onTimer id={}", id));
         if (id == 100) {
             if (!shapeHover) {
                 refresh();
@@ -59,6 +82,7 @@ WinCap::WinCap() : ToolHost()
         }
           // 原地提示到点了：收掉它并重画
           if (id == tipMsgId) {
+              logTimer(L"tip reset");
               tipLayout.Reset();
               killTimer(tipMsgId);
               refresh();
@@ -197,6 +221,8 @@ void WinCap::showTip(const std::wstring& text)
     // 先撤掉上一次的定时器再重新计时：连着点两次二维码，第二次应该重新显示满 2 秒
     killTimer(tipMsgId);
     setTimer(tipShowMs, tipMsgId);
+    logTimer(std::format(L"showTip setTimer(elapse={}, id={}) hwnd={}", tipShowMs, tipMsgId,
+        (void*)hwnd));
     refresh();
 }
 
@@ -1085,6 +1111,32 @@ bool WinCap::finishToPin()
     return true;
 }
 
+// 二维码内容可能是 URL、也可能是多行 vCard/文本：统一压成一行（换行/制表符→空格）、
+// 掐掉首尾空白、超长截断加省略号 —— 这是**给提示窗看的**，剪切板里放的仍是原文。
+static std::wstring qrToastContent(const std::wstring& text)
+{
+    std::wstring s;
+    s.reserve(text.size());
+    for (wchar_t c : text) {
+        if (c == L'\r' || c == L'\n' || c == L'\t') {
+            if (!s.empty() && s.back() != L' ') s.push_back(L' ');
+        }
+        else {
+            s.push_back(c);
+        }
+    }
+    while (!s.empty() && s.front() == L' ') s.erase(s.begin());
+    while (!s.empty() && s.back() == L' ') s.pop_back();
+    constexpr size_t kMax = 80;
+    if (s.size() > kMax) {
+        s.resize(kMax);
+        // 别把 UTF-16 代理对切成两半（否则会显示成方块）
+        if (!s.empty() && s.back() >= 0xD800 && s.back() <= 0xDBFF) s.pop_back();
+        s += L"\u2026";
+    }
+    return s;
+}
+
 void WinCap::startQrcode()
 {
     std::vector<BYTE> pixels;
@@ -1103,7 +1155,9 @@ void WinCap::startQrcode()
         // 用完即走模式不弹提示：那种用法下 WinCap::onClosed 会立刻 quit(0)，
         // 提示窗刚建出来就被进程带走，只会闪一下 —— 脚本要的是剪切板里的结果，不是看提示
         if (Ling::App::get()->args[L"--auto-quit"] != L"true") {
-            Toast::showAt(Lang::get(L"cap.qrcodeCopied"),
+            // 提示分两行：标题一行、识别到的内容一行（用户 2026-10-17 要求"后面换行"）。
+            // Toast 按文字量测出来定窗口大小，\n 会让它自然变成两行高。
+            Toast::showAt(Lang::get(L"cap.qrcodeCopied") + L"\n" + qrToastContent(text),
                 (mr.left + mr.right) / 2, (mr.top + mr.bottom) / 2, dpi);
         }
         close();

@@ -195,7 +195,10 @@ def windows_of(pid):
         if wpid.value == pid:
             r = wintypes.RECT()
             user32.GetWindowRect(hwnd, ctypes.byref(r))
+            cls = ctypes.create_unicode_buffer(64)
+            user32.GetClassNameW(hwnd, cls, 64)
             found.append({'hwnd': hwnd, 'visible': bool(user32.IsWindowVisible(hwnd)),
+                          'cls': cls.value,
                           'rect': (r.left, r.top, r.right - r.left, r.bottom - r.top)})
         return True
 
@@ -271,6 +274,49 @@ def clipboard_text():
         user32.CloseClipboard()
 
 
+def find_toast(pid, exclude=None):
+    """提示窗（Toast）：本进程里**小尺寸的可见 Ling 窗口**。
+    截图覆盖层是大窗口、工具条是细长条，按"宽<900 且 高<200"就能把它们排除掉。"""
+    out = []
+    for w in windows_of(pid):
+        if not w['visible'] or w['hwnd'] == exclude or w.get('cls') != 'Ling':
+            continue
+        ww, hh = w['rect'][2], w['rect'][3]
+        if 0 < ww < 900 and 0 < hh < 200:
+            out.append(w)
+    return out
+
+
+def grab_png(hwnd, path):
+    """PrintWindow 抓窗口自身内容存成 png（只看自己的窗口，不碰桌面）。"""
+    from PIL import Image
+    g = ctypes.WinDLL('gdi32')
+    l, t_, ww, hh = window_rect(hwnd)
+    hdc = user32.GetWindowDC(hwnd)
+    mem = g.CreateCompatibleDC(hdc)
+    bmp = g.CreateCompatibleBitmap(hdc, ww, hh)
+    g.SelectObject(mem, bmp)
+    user32.PrintWindow(hwnd, mem, 2)
+
+    class B(ctypes.Structure):
+        _fields_ = [('sz', wintypes.DWORD), ('w', ctypes.c_long), ('h', ctypes.c_long),
+                    ('pl', wintypes.WORD), ('b', wintypes.WORD), ('c', wintypes.DWORD),
+                    ('si', wintypes.DWORD), ('x', ctypes.c_long), ('y', ctypes.c_long),
+                    ('u', wintypes.DWORD), ('i', wintypes.DWORD)]
+    bi = B(ctypes.sizeof(B), ww, -hh, 1, 32, 0, 0, 0, 0, 0, 0)
+    buf = ctypes.create_string_buffer(ww * hh * 4)
+    g.GetDIBits(mem, bmp, 0, hh, buf, ctypes.byref(bi), 0)
+    g.DeleteObject(bmp); g.DeleteDC(mem); user32.ReleaseDC(hwnd, hdc)
+    Image.frombuffer('RGBA', (ww, hh), buf.raw, 'raw', 'BGRA', 0, 1).convert('RGB').save(path)
+    return path
+
+
+def window_rect(hwnd):
+    r = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(r))
+    return r.left, r.top, r.right - r.left, r.bottom - r.top
+
+
 def changed(a, b, thr=15):
     return sum(1 for x, y in zip(a, b) if abs(x - y) > thr)
 
@@ -344,6 +390,28 @@ def main():
         print('   0.7 秒：平均亮度 %.1f；截图窗口还在 = %s；本进程可见窗口 %d 个'
               % (sum(during) / len(during), alive_07, len(vis_07)))
 
+        # 提示窗应当是**两行**：标题一行 + 识别到的内容一行（2026-10-17 用户要求换行）。
+        # 单行约 36~40 物理像素，两行 55+ —— 用高度当结构判据，顺手存一张图给人看。
+        toasts = find_toast(pid, exclude=capwnd)
+        # ⚠ dpi 要从**提示窗自己**取：capwnd 这时已经销毁，GetDpiForWindow 返回 0，
+        #    阈值会跟着变成 0 —— 断言就成了摆设（第一次就踩了）。
+        dpi = user32.GetDpiForWindow(toasts[0]['hwnd']) / 96.0 if toasts else 0.0
+        toast_ok = False
+        toast_h = 0
+        if toasts:
+            tw = min(toasts, key=lambda w: w['rect'][1])
+            toast_h = tw['rect'][3]
+            # 单行约 40 物理像素（13pt + 8*2 padding），两行 ~60；46 是两者的中间地带
+            toast_ok = dpi > 0 and toast_h >= 46 * dpi
+            print('   提示窗：%dx%d 物理像素（dpi=%.2f）→ %s'
+                  % (tw['rect'][2], toast_h, dpi, '两行' if toast_ok else '看着只有一行'))
+            try:
+                print('   提示窗截图：%s' % grab_png(tw['hwnd'], os.path.join(LOG_DIR, 'toast.png')))
+            except Exception as e:
+                print('   （存图失败：%s）' % e)
+        else:
+            print('   !! 没找到提示窗（0.7 秒时）')
+
         # 再等到约 2.8 秒：提示应该自己收掉了，一个窗口都不剩
         time.sleep(2.1)
         after = center_gray(cx, cy)
@@ -382,6 +450,14 @@ def main():
         ok = False
     else:
         print('  => 通过：2.8 秒后提示自己消失了（残留变化 %d）' % d_gone)
+    if not toasts:
+        print('  => **问题：0.7 秒时没找到提示窗**')
+        ok = False
+    elif not toast_ok:
+        print('  => **问题：提示窗只有 %.0f 物理像素高，没显示成两行（内容那行没换行？）**' % toast_h)
+        ok = False
+    else:
+        print('  => 通过：提示窗 %d 物理像素高（标题一行 + 内容一行）' % toast_h)
     if len(vis_28) != 0:
         print('  => **问题：2.8 秒后进程还剩 %d 个可见窗口（提示没销毁）**' % len(vis_28))
         ok = False
